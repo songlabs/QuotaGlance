@@ -1,0 +1,323 @@
+name: TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "Marketing version (e.g. 1.0 or 1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: testflight-production
+  cancel-in-progress: false
+
+jobs:
+  archive-and-upload:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 120
+    environment: testflight
+    env:
+      APP_BUNDLE_ID: com.songlabs.QuotaGlance
+      INTERNAL_GROUP_NAME: songlabs Internal Test
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select and verify Xcode 26.3
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+          SDK_VERSION=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $SDK_VERSION"
+          test "${SDK_VERSION%%.*}" -ge 26
+
+      - name: Validate required release configuration
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          test -n "$ASC_KEY_ID" || { echo "Missing ASC_KEY_ID"; exit 1; }
+          test -n "$ASC_ISSUER_ID" || { echo "Missing ASC_ISSUER_ID"; exit 1; }
+          test -n "$ASC_PRIVATE_KEY" || { echo "Missing ASC_PRIVATE_KEY"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "Missing repository variable APPLE_TEAM_ID"; exit 1; }
+          [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "Invalid APPLE_TEAM_ID"; exit 1; }
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          KEY_DIRECTORY="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIRECTORY"
+          KEY_PATH="$KEY_DIRECTORY/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Validate release version and set unique build number
+        env:
+          REQUESTED_MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REQUESTED_MARKETING_VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+            echo "Invalid marketing_version: $REQUESTED_MARKETING_VERSION" >&2
+            exit 1
+          fi
+
+          MARKETING_VERSION="$REQUESTED_MARKETING_VERSION"
+          BUILD_NUMBER="$(date -u +%s)"
+          echo "MARKETING_VERSION=$MARKETING_VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "Marketing version: $MARKETING_VERSION"
+          echo "Build number: $BUILD_NUMBER"
+
+      - name: Verify iOS CI passed for current commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RESPONSE_FILE="$RUNNER_TEMP/ios-ci-runs.json"
+          curl --fail --silent --show-error \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --output "$RESPONSE_FILE" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&per_page=100"
+
+          ruby -rjson -e '
+            sha = ENV.fetch("GITHUB_SHA")
+            runs = JSON.parse(File.read(ARGV.fetch(0))).fetch("workflow_runs")
+            exact_runs = runs.select { |run| run.fetch("head_sha") == sha }
+
+            if exact_runs.any? { |run| run.fetch("status") == "completed" && run["conclusion"] == "success" }
+              puts "iOS CI passed for commit #{sha[0, 7]}. Continuing TestFlight release."
+              exit
+            end
+
+            warn "No successful iOS CI run found for current commit #{sha[0, 7]}."
+            if exact_runs.any? { |run| run.fetch("status") != "completed" }
+              warn "iOS CI has not completed successfully for current commit."
+              warn "Wait for iOS CI to finish, then run TestFlight again."
+            end
+            warn "TestFlight release aborted before Archive."
+            exit 1
+          ' "$RESPONSE_FILE"
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
+
+      - name: Archive with automatic signing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project QuotaGlance.xcodeproj \
+            -scheme QuotaGlance \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/QuotaGlance.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | tee "$RUNNER_TEMP/archive.log"
+
+      - name: Verify archive structure and versions
+        run: |
+          set -euo pipefail
+          archive_path="$RUNNER_TEMP/QuotaGlance.xcarchive"
+          shopt -s nullglob
+
+          app_candidates=("$archive_path"/Products/Applications/*.app)
+          if (( ${#app_candidates[@]} != 1 )); then
+            echo "Expected exactly one Main App in the archive, found ${#app_candidates[@]}." >&2
+            exit 1
+          fi
+          app_path="${app_candidates[0]}"
+
+          phone_widget_candidates=("$app_path"/PlugIns/*.appex)
+          if (( ${#phone_widget_candidates[@]} != 1 )); then
+            echo "Expected exactly one iPhone Widget in the Main App, found ${#phone_widget_candidates[@]}." >&2
+            exit 1
+          fi
+          phone_widget_path="${phone_widget_candidates[0]}"
+
+          watch_app_candidates=("$app_path"/Watch/*.app)
+          if (( ${#watch_app_candidates[@]} != 1 )); then
+            echo "Expected exactly one Watch App in the Main App, found ${#watch_app_candidates[@]}." >&2
+            exit 1
+          fi
+          watch_app_path="${watch_app_candidates[0]}"
+
+          watch_widget_candidates=("$watch_app_path"/PlugIns/*.appex)
+          if (( ${#watch_widget_candidates[@]} != 1 )); then
+            echo "Expected exactly one Watch Widget in the Watch App, found ${#watch_widget_candidates[@]}." >&2
+            exit 1
+          fi
+          watch_widget_path="${watch_widget_candidates[0]}"
+
+          read_plist_value() {
+            /usr/libexec/PlistBuddy -c "Print :$2" "$1"
+          }
+
+          verify_bundle() {
+            local label=$1 bundle_path=$2 expected_bundle_id=$3
+            local info="$bundle_path/Info.plist"
+            test -f "$info" || { echo "Missing $label Info.plist: $info" >&2; exit 1; }
+
+            local bundle_id marketing_version build_number
+            bundle_id=$(read_plist_value "$info" CFBundleIdentifier)
+            marketing_version=$(read_plist_value "$info" CFBundleShortVersionString)
+            build_number=$(read_plist_value "$info" CFBundleVersion)
+
+            printf '%s (%s):\n' "$label" "$(basename "$bundle_path")"
+            printf '  Bundle ID: %s\n' "$bundle_id"
+            printf '  Marketing Version: %s\n' "$marketing_version"
+            printf '  Build Number: %s\n\n' "$build_number"
+
+            test "$bundle_id" = "$expected_bundle_id" || {
+              echo "$label Bundle ID does not match $expected_bundle_id." >&2
+              exit 1
+            }
+            test "$marketing_version" = "$MARKETING_VERSION" || {
+              echo "$label Marketing Version does not match the workflow input." >&2
+              exit 1
+            }
+            test "$build_number" = "$BUILD_NUMBER" || {
+              echo "$label Build Number does not match the generated build number." >&2
+              exit 1
+            }
+          }
+
+          phone_extension_point=$(read_plist_value "$phone_widget_path/Info.plist" NSExtension:NSExtensionPointIdentifier)
+          watch_extension_point=$(read_plist_value "$watch_widget_path/Info.plist" NSExtension:NSExtensionPointIdentifier)
+          test "$phone_extension_point" = "com.apple.widgetkit-extension" || {
+            echo "The embedded iPhone extension is not a WidgetKit extension." >&2
+            exit 1
+          }
+          test "$watch_extension_point" = "com.apple.widgetkit-extension" || {
+            echo "The embedded Watch extension is not a WidgetKit extension." >&2
+            exit 1
+          }
+
+          printf 'Release archive verification\n\n'
+          verify_bundle "Main App" "$app_path" "com.songlabs.QuotaGlance"
+          verify_bundle "iPhone Widget" "$phone_widget_path" "com.songlabs.QuotaGlance.widget"
+          verify_bundle "Watch App" "$watch_app_path" "com.songlabs.QuotaGlance.watchkitapp"
+          verify_bundle "Watch Widget" "$watch_widget_path" "com.songlabs.QuotaGlance.watchkitapp.widget"
+          echo "Archive structure and version verification passed."
+
+      - name: Verify archive signing and entitlements
+        run: Scripts/verify_distribution_archive.sh "$RUNNER_TEMP/QuotaGlance.xcarchive"
+
+      - name: Create export options
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+
+      - name: Export IPA
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/QuotaGlance.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tee "$RUNNER_TEMP/export.log"
+          test -f "$RUNNER_TEMP/export/QuotaGlance.ipa"
+
+      - name: Upload to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          set +e
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$RUNNER_TEMP/export/QuotaGlance.ipa" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/upload.log"
+          UPLOAD_PIPESTATUS=("${PIPESTATUS[@]}")
+          set -e
+          ALTOOL_EXIT="${UPLOAD_PIPESTATUS[0]}"
+          TEE_EXIT="${UPLOAD_PIPESTATUS[1]}"
+
+          if [[ "$ALTOOL_EXIT" -ne 0 ]]; then
+            echo "App Store Connect upload command failed (exit code $ALTOOL_EXIT)." >&2
+            exit 1
+          fi
+          if [[ "$TEE_EXIT" -ne 0 ]]; then
+            echo "Failed to capture the App Store Connect upload log (tee exit code $TEE_EXIT)." >&2
+            exit 1
+          fi
+          if [[ ! -f "$RUNNER_TEMP/upload.log" ]]; then
+            echo "App Store Connect upload log was not created." >&2
+            exit 1
+          fi
+          if grep -Eiq \
+            'UPLOAD FAILED|Failed to upload package\.|Validation failed|STATE_ERROR\.VALIDATION_ERROR|Invalid Pre-Release Train' \
+            "$RUNNER_TEMP/upload.log"; then
+            echo "App Store Connect rejected the upload." >&2
+            exit 1
+          fi
+
+          echo "App Store Connect upload completed without known failure markers."
+
+      - name: Wait for processing and assign internal group
+        if: success()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          ruby Scripts/assign_testflight_group.rb \
+            --key-path "$ASC_KEY_PATH" \
+            --key-id "$ASC_KEY_ID" \
+            --issuer-id "$ASC_ISSUER_ID" \
+            --bundle-id "$APP_BUNDLE_ID" \
+            --build-number "$BUILD_NUMBER" \
+            --group-name "$INTERNAL_GROUP_NAME"
+
+      - name: Remove API key
+        if: always()
+        run: rm -f "${ASC_KEY_PATH:-/dev/null}"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-diagnostics-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/export/DistributionSummary.plist
+          retention-days: 7
+          if-no-files-found: ignore

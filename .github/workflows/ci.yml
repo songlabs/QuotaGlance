@@ -1,0 +1,86 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select and verify Xcode 26.3
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+          SDK_VERSION=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $SDK_VERSION"
+          test "${SDK_VERSION%%.*}" -ge 26
+
+      - name: Validate delivery scripts
+        run: |
+          ruby -c Scripts/assign_testflight_group.rb
+          bash -n Scripts/verify_distribution_archive.sh
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
+
+      - name: Select simulator
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | ruby -rjson -e '
+            runtimes = JSON.parse(STDIN.read).fetch("devices").filter_map do |runtime, devices|
+              version = runtime[/iOS[- ](\d+(?:[-.]\d+)*)/, 1]
+              next unless version
+              [version.split(/[-.]/).map(&:to_i), devices]
+            end
+            runtime = runtimes.select { |version, _| version.first >= 26 }.max_by(&:first)
+            abort "No available iOS 26 or newer simulator runtime" unless runtime
+            phone = runtime.last.find { |device| device["name"].start_with?("iPhone") }
+            abort "No available iPhone in the selected simulator runtime" unless phone
+            print phone.fetch("udid")
+          ')
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
+
+      - name: Build and run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project QuotaGlance.xcodeproj \
+            -scheme QuotaGlance \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -only-testing:QuotaGlanceTests \
+            -resultBundlePath "$RUNNER_TEMP/QuotaGlanceTests.xcresult" | tee "$RUNNER_TEMP/unit-tests.log"
+
+      - name: Build Release for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project QuotaGlance.xcodeproj \
+            -scheme QuotaGlance \
+            -configuration Release \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/release-build.log"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ci-diagnostics
+          path: |
+            ${{ runner.temp }}/QuotaGlanceTests.xcresult
+            ${{ runner.temp }}/*.log
+          retention-days: 7
+          if-no-files-found: ignore
