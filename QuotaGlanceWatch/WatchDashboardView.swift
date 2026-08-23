@@ -97,9 +97,9 @@ private struct WatchProviderCard: View {
     private func color(_ window: UsageWindow?) -> Color {
         guard let window else { return .secondary }
         switch window.level {
-        case .normal: accent
-        case .attention: .orange
-        case .low: .red
+        case .normal: return accent
+        case .attention: return .orange
+        case .low: return .red
         }
     }
 
