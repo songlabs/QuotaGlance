@@ -26,24 +26,3 @@ struct OAuthCredential: Codable, Equatable {
         )
     }
 }
-enum JWTClaims {
-    static func string(_ key: String, in token: String) -> String? {
-        payload(in: token)?[key] as? String
-    }
-
-    static func expiration(in token: String) -> Date? {
-        guard let value = payload(in: token)?["exp"] as? Double else { return nil }
-        return Date(timeIntervalSince1970: value)
-    }
-
-    private static func payload(in token: String) -> [String: Any]? {
-        let pieces = token.split(separator: ".")
-        guard pieces.count > 1 else { return nil }
-        var encoded = String(pieces[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
-        encoded.append(String(repeating: "=", count: (4 - encoded.count % 4) % 4))
-        guard let data = Data(base64Encoded: encoded),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return object
-    }
-}

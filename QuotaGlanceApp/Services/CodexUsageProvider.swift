@@ -74,7 +74,7 @@ final class CodexUsageProvider: UsageProvider {
             throw UsageProviderError.schemaChanged
         }
 
-        let accountID = JWTClaims.string("chatgpt_account_id", in: token.idToken)
+        let accountID = JWTClaims.chatGPTAccountID(in: token.idToken)
         guard accountID != nil else { throw UsageProviderError.schemaChanged }
         try credentials.save(OAuthCredential(
             provider: provider,
@@ -148,7 +148,7 @@ final class CodexUsageProvider: UsageProvider {
             accessToken: accessToken,
             refreshToken: token.refreshToken,
             expiresAt: JWTClaims.expiration(in: accessToken) ?? Date().addingTimeInterval(3_600),
-            accountID: idToken.flatMap { JWTClaims.string("chatgpt_account_id", in: $0) }
+            accountID: idToken.flatMap { JWTClaims.chatGPTAccountID(in: $0) }
         )
         try credentials.save(refreshed)
         return refreshed
