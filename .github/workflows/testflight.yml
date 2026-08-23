@@ -309,7 +309,10 @@ jobs:
 
       - name: Remove API key
         if: always()
-        run: rm -f "${ASC_KEY_PATH:-/dev/null}"
+        run: |
+          if [[ -n "${ASC_KEY_PATH:-}" ]]; then
+            rm -f "$ASC_KEY_PATH"
+          fi
 
       - name: Upload diagnostics
         if: always()
