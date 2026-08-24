@@ -1,5 +1,6 @@
 import QuotaGlanceCore
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @Bindable var store: DashboardStore
@@ -52,7 +53,7 @@ private struct ProviderGroup: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label(provider.displayName, systemImage: provider == .codex ? "sparkles" : "a.circle.fill")
+                providerLabel
                     .font(.headline)
                     .foregroundStyle(provider.accent)
                 Spacer()
@@ -91,6 +92,21 @@ private struct ProviderGroup: View {
             }
         }
     }
+
+    @ViewBuilder
+    private var providerLabel: some View {
+        if provider == .codex, let logo = UIImage(named: "OpenAILogo") {
+            Label {
+                Text(provider.displayName)
+            } icon: {
+                Image(uiImage: logo)
+                    .resizable()
+                    .scaledToFit()
+            }
+        } else {
+            Label(provider.displayName, systemImage: provider == .codex ? "sparkles" : "a.circle.fill")
+        }
+    }
 }
 
 private struct AccountSection: View {
@@ -126,11 +142,11 @@ private struct AccountSection: View {
     }
 
     private var accountName: String {
-        state.account.identityLabel ?? String(
+        state.account.displayName(fallback: String(
             localized: "account.number",
             defaultValue: "Account \(state.account.ordinal)",
             locale: locale
-        )
+        ))
     }
 }
 

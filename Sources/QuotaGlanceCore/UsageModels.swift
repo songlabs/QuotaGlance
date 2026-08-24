@@ -73,12 +73,20 @@ public struct ProviderAccount: Codable, Equatable, Identifiable, Sendable {
     public let provider: AIProvider
     public let ordinal: Int
     public let identityLabel: String?
+    public let customDisplayName: String?
 
-    public init(id: UUID, provider: AIProvider, ordinal: Int, identityLabel: String? = nil) {
+    public init(
+        id: UUID,
+        provider: AIProvider,
+        ordinal: Int,
+        identityLabel: String? = nil,
+        customDisplayName: String? = nil
+    ) {
         self.id = id
         self.provider = provider
         self.ordinal = ordinal
         self.identityLabel = identityLabel
+        self.customDisplayName = customDisplayName
     }
 
     public func replacingIdentityLabel(_ identityLabel: String?) -> ProviderAccount {
@@ -86,8 +94,24 @@ public struct ProviderAccount: Codable, Equatable, Identifiable, Sendable {
             id: id,
             provider: provider,
             ordinal: ordinal,
-            identityLabel: identityLabel ?? self.identityLabel
+            identityLabel: identityLabel ?? self.identityLabel,
+            customDisplayName: customDisplayName
         )
+    }
+
+    public func replacingCustomDisplayName(_ customDisplayName: String) -> ProviderAccount {
+        let trimmedName = customDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ProviderAccount(
+            id: id,
+            provider: provider,
+            ordinal: ordinal,
+            identityLabel: identityLabel,
+            customDisplayName: trimmedName.isEmpty ? nil : trimmedName
+        )
+    }
+
+    public func displayName(fallback: String) -> String {
+        customDisplayName ?? identityLabel ?? fallback
     }
 }
 
