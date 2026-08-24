@@ -93,20 +93,14 @@ private struct ConnectCard: View {
             Label(provider.displayName, systemImage: provider == .codex ? "sparkles" : "a.circle.fill")
                 .font(.headline)
                 .foregroundStyle(provider.accent)
-            Text(isConnected
-                 ? "Connected, but no usage data has been received yet."
-                 : provider == .codex
-                    ? "Track your Codex usage and reset time."
-                    : "Track your Claude Code usage and reset time.")
+            Text(description)
                 .foregroundStyle(.secondary)
             Button {
                 Task { await action() }
             } label: {
                 HStack {
                     if isConnecting { ProgressView().tint(.black) }
-                    Text(isConnecting
-                         ? (isConnected ? "Refreshing…" : "Connecting…")
-                         : (isConnected ? "Retry refresh" : "Connect \(provider.displayName)"))
+                    Text(actionTitle)
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -128,6 +122,25 @@ private struct ConnectCard: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(.white.opacity(0.055))
         }
+    }
+
+    private var description: String {
+        if isConnected {
+            return String(localized: "Connected, but no usage data has been received yet.")
+        }
+        return provider == .codex
+            ? String(localized: "Track your Codex usage and reset time.")
+            : String(localized: "Track your Claude Code usage and reset time.")
+    }
+
+    private var actionTitle: String {
+        if isConnecting {
+            return isConnected ? String(localized: "Refreshing…") : String(localized: "Connecting…")
+        }
+        if isConnected {
+            return String(localized: "Retry refresh")
+        }
+        return String(localized: "connect.provider", defaultValue: "Connect \(provider.displayName)")
     }
 }
 

@@ -46,7 +46,7 @@ struct SettingsView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName)
-                Text(connected ? "Connected" : "Not connected")
+                Text(connected ? String(localized: "Connected") : String(localized: "Not connected"))
                     .font(.caption)
                     .foregroundStyle(connected ? .green : .secondary)
             }

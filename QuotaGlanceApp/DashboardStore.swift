@@ -127,18 +127,18 @@ final class DashboardStore {
         if let error = error as? UsageProviderError {
             switch error {
             case .network:
-                return "Unable to refresh. Check your connection."
+                return String(localized: "Unable to refresh. Check your connection.")
             case .tokenExpired, .noAccount:
-                return "Session expired. Connect again."
+                return String(localized: "Session expired. Connect again.")
             case .schemaChanged:
-                return "Provider response changed. Cached data is preserved."
+                return String(localized: "Provider response changed. Cached data is preserved.")
             case let .rejected(statusCode) where statusCode == 429:
-                return "Provider rate-limited refresh. Try again later."
+                return String(localized: "Provider rate-limited refresh. Try again later.")
             default:
-                return error.localizedDescription
+                return String(localized: "Something went wrong. Try again.")
             }
         }
-        return "Unable to refresh. Cached data is preserved."
+        return String(localized: "Unable to refresh. Cached data is preserved.")
     }
 
     private func requiresReconnect(_ error: Error) -> Bool {
