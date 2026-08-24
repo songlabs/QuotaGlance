@@ -108,8 +108,10 @@ private struct ComplicationView: View {
     }
 
     private func accessibilityValue(_ snapshot: UsageSnapshot?) -> String {
-        let remaining = snapshot?.session.map { "\($0.roundedRemainingPercentage) percent" } ?? "not available"
-        return "\(remaining), updated \(updatedTime)"
+        let remaining = snapshot?.session.map {
+            String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
+        } ?? String(localized: "not available")
+        return String(localized: "remaining.updated", defaultValue: "\(remaining), updated \(updatedTime)")
     }
 }
 

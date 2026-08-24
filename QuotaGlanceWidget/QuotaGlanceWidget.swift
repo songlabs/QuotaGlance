@@ -76,7 +76,7 @@ private struct PhoneWidgetView: View {
                 .monospacedDigit()
             Label("5h remaining", systemImage: "clock")
                 .font(.caption2)
-            Text("Weekly \(snapshot.weekly.map { "\($0.roundedRemainingPercentage)%" } ?? "—")")
+            Text(weeklyText(snapshot.weekly))
                 .font(.caption.bold())
             Spacer(minLength: 0)
             Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
@@ -98,7 +98,7 @@ private struct PhoneWidgetView: View {
                             .font(.title.bold())
                             .monospacedDigit()
                         Text("5h remaining").font(.caption2).foregroundStyle(.secondary)
-                        Text("Weekly \(snapshot.weekly.map { "\($0.roundedRemainingPercentage)%" } ?? "—")")
+                        Text(weeklyText(snapshot.weekly))
                             .font(.caption.bold())
                         Spacer(minLength: 0)
                         Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
@@ -113,6 +113,11 @@ private struct PhoneWidgetView: View {
 
     private func accent(_ provider: AIProvider) -> Color {
         provider == .codex ? .green : .orange
+    }
+
+    private func weeklyText(_ window: UsageWindow?) -> String {
+        let percentage = window.map { "\($0.roundedRemainingPercentage)%" } ?? "—"
+        return String(localized: "weekly.value", defaultValue: "Weekly \(percentage)")
     }
 }
 

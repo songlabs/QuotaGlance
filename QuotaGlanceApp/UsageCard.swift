@@ -61,7 +61,7 @@ struct UsageCard: View {
             }
 
             if let reconnect {
-                Button("Reconnect \(snapshot.provider.displayName)") {
+                Button(String(localized: "reconnect.provider", defaultValue: "Reconnect \(snapshot.provider.displayName)")) {
                     Task { await reconnect() }
                 }
                 .buttonStyle(.bordered)
@@ -82,8 +82,9 @@ struct UsageCard: View {
     }
 
     private func resetText(_ date: Date?) -> String {
-        guard let date else { return "Reset —" }
-        return "Reset \(date.formatted(date: .omitted, time: .shortened))"
+        guard let date else { return String(localized: "Reset —") }
+        let time = date.formatted(date: .omitted, time: .shortened)
+        return String(localized: "reset.time", defaultValue: "Reset \(time)")
     }
 }
 
@@ -105,7 +106,9 @@ private struct UsageRing: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("5 hour remaining")
-        .accessibilityValue(window.map { "\($0.roundedRemainingPercentage) percent" } ?? "Not available")
+        .accessibilityValue(window.map {
+            String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
+        } ?? String(localized: "Not available"))
     }
 
     private var ringColor: Color {

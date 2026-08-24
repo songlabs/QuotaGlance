@@ -52,7 +52,13 @@ enum PreviewFactory {
     }
 
     static var errorStates: [ProviderPresentation] {
-        [ProviderPresentation(provider: .codex, isConnected: true, snapshot: codex, isRefreshing: false, errorMessage: "Unable to refresh. Check your connection.")]
+        [ProviderPresentation(
+            provider: .codex,
+            isConnected: true,
+            snapshot: codex,
+            isRefreshing: false,
+            errorMessage: String(localized: "Unable to refresh. Check your connection.")
+        )]
     }
 
     static var loadingStates: [ProviderPresentation] {

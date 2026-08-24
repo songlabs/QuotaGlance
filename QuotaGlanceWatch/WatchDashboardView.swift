@@ -104,8 +104,9 @@ private struct WatchProviderCard: View {
     }
 
     private func resetText(_ date: Date?) -> String {
-        guard let date else { return "Reset —" }
-        return "Reset \(date.formatted(date: .omitted, time: .shortened))"
+        guard let date else { return String(localized: "Reset —") }
+        let time = date.formatted(date: .omitted, time: .shortened)
+        return String(localized: "reset.time", defaultValue: "Reset \(time)")
     }
 }
 
