@@ -17,6 +17,17 @@ public enum JWTClaims {
         return Date(timeIntervalSince1970: value)
     }
 
+    public static func accountDisplayName(in token: String) -> String? {
+        guard let claims = payload(in: token) else { return nil }
+        for key in ["email", "preferred_username", "name"] {
+            if let value = claims[key] as? String {
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        return nil
+    }
+
     private static func payload(in token: String) -> [String: Any]? {
         let pieces = token.split(separator: ".")
         guard pieces.count > 1 else { return nil }

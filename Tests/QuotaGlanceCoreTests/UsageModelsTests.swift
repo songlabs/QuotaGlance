@@ -39,4 +39,37 @@ struct UsageModelsTests {
         #expect(UsageFormatting.isStale(updatedAt: now - 901, now: now))
         #expect(!UsageFormatting.isStale(updatedAt: now - 900, now: now))
     }
+
+    @Test("Legacy snapshots decode without an account identifier")
+    func legacySnapshotCompatibility() throws {
+        let legacyJSON = #"{"provider":"codex","session":null,"weekly":null,"updatedAt":0}"#
+        let snapshot = try JSONDecoder().decode(UsageSnapshot.self, from: Data(legacyJSON.utf8))
+
+        #expect(snapshot.provider == .codex)
+        #expect(snapshot.accountIdentifier == nil)
+    }
+
+    @Test("Account assignment and selected snapshot lookup remain independent")
+    func accountSnapshots() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let first = UsageSnapshot(
+            provider: .codex,
+            accountIdentifier: firstID,
+            session: UsageWindow(usedPercentage: 10, resetAt: nil),
+            weekly: nil,
+            updatedAt: .distantPast
+        )
+        let second = UsageSnapshot(
+            provider: .codex,
+            accountIdentifier: secondID,
+            session: UsageWindow(usedPercentage: 80, resetAt: nil),
+            weekly: nil,
+            updatedAt: .distantFuture
+        )
+        let envelope = SnapshotEnvelope(snapshots: [first, second])
+
+        #expect(envelope.snapshot(for: .codex, accountIdentifier: firstID) == first)
+        #expect(envelope.snapshot(for: .codex, accountIdentifier: secondID) == second)
+    }
 }

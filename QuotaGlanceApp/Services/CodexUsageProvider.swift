@@ -25,9 +25,11 @@ final class CodexUsageProvider: UsageProvider {
         session = URLSession(configuration: configuration)
     }
 
-    var isConnected: Bool { credentials.contains(provider) }
+    func isConnected(accountIdentifier: UUID) -> Bool {
+        credentials.contains(provider, accountIdentifier: accountIdentifier)
+    }
 
-    func connect() async throws {
+    func connect(accountIdentifier: UUID) async throws -> String? {
         let pkce = try OAuthPKCE.make()
         let state = try OAuthPKCE.state()
         var redirectURI = ""
@@ -83,25 +85,26 @@ final class CodexUsageProvider: UsageProvider {
             expiresAt: JWTClaims.expiration(in: token.accessToken) ?? Date().addingTimeInterval(3_600),
             accountID: accountID,
             scopes: scopes.split(separator: " ").map(String.init)
-        ))
+        ), accountIdentifier: accountIdentifier)
+        return JWTClaims.accountDisplayName(in: token.idToken)
     }
 
-    func disconnect() async throws {
-        try credentials.delete(provider)
+    func disconnect(accountIdentifier: UUID) async throws {
+        try credentials.delete(provider, accountIdentifier: accountIdentifier)
     }
 
-    func refreshUsage() async throws -> UsageSnapshot {
-        guard var credential = try credentials.load(provider) else {
+    func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot {
+        guard var credential = try credentials.load(provider, accountIdentifier: accountIdentifier) else {
             throw UsageProviderError.noAccount
         }
         if credential.expiresAt <= Date().addingTimeInterval(60) {
-            credential = try await refresh(credential)
+            credential = try await refresh(credential, accountIdentifier: accountIdentifier)
         }
 
         do {
             return try await requestUsage(credential)
         } catch UsageProviderError.rejected(statusCode: 401) {
-            let refreshed = try await refresh(credential)
+            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier)
             return try await requestUsage(refreshed)
         }
     }
@@ -118,7 +121,7 @@ final class CodexUsageProvider: UsageProvider {
         return try UsageResponseDecoder.decodeCodex(data)
     }
 
-    private func refresh(_ credential: OAuthCredential) async throws -> OAuthCredential {
+    private func refresh(_ credential: OAuthCredential, accountIdentifier: UUID) async throws -> OAuthCredential {
         var request = URLRequest(url: tokenEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -150,7 +153,7 @@ final class CodexUsageProvider: UsageProvider {
             expiresAt: JWTClaims.expiration(in: accessToken) ?? Date().addingTimeInterval(3_600),
             accountID: idToken.flatMap { JWTClaims.chatGPTAccountID(in: $0) }
         )
-        try credentials.save(refreshed)
+        try credentials.save(refreshed, accountIdentifier: accountIdentifier)
         return refreshed
     }
 

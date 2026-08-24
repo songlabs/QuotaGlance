@@ -13,6 +13,7 @@ struct QuotaGlanceApp: App {
         WindowGroup {
             DashboardView(store: store)
                 .preferredColorScheme(.dark)
+                .environment(\.locale, store.appLanguage.locale)
         }
     }
 }

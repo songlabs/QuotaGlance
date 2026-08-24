@@ -3,11 +3,11 @@ import Foundation
 @MainActor
 public protocol UsageProvider: AnyObject {
     var provider: AIProvider { get }
-    var isConnected: Bool { get }
 
-    func connect() async throws
-    func disconnect() async throws
-    func refreshUsage() async throws -> UsageSnapshot
+    func isConnected(accountIdentifier: UUID) -> Bool
+    func connect(accountIdentifier: UUID) async throws -> String?
+    func disconnect(accountIdentifier: UUID) async throws
+    func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot
 }
 public enum UsageProviderError: Error, Equatable, Sendable {
     case authenticationCancelled
@@ -18,6 +18,7 @@ public enum UsageProviderError: Error, Equatable, Sendable {
     case schemaChanged
     case invalidOAuthCallback
     case oauthUnavailable(String)
+    case accountAlreadyConnected
     case keychain(Int32)
 }
 
@@ -40,6 +41,8 @@ extension UsageProviderError: LocalizedError {
             "The OAuth callback could not be verified."
         case let .oauthUnavailable(reason):
             reason
+        case .accountAlreadyConnected:
+            "This provider account is already connected."
         case let .keychain(status):
             "Keychain operation failed (\(status))."
         }

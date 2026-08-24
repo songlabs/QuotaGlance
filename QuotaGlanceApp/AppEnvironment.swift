@@ -12,6 +12,8 @@ enum AppEnvironment {
         ]
         return DashboardStore(
             providers: providers,
+            credentials: credentials,
+            registry: AccountRegistry(),
             cache: AppGroupSnapshotCache(),
             watchSync: PhoneWatchSync()
         )

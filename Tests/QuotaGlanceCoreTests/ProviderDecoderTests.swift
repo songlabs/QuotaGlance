@@ -13,6 +13,7 @@ struct ProviderDecoderTests {
         #expect(snapshot.session?.remainingPercentage == 72)
         #expect(snapshot.weekly?.remainingPercentage == 41)
         #expect(snapshot.session?.resetAt == Date(timeIntervalSince1970: 1_787_509_920))
+        #expect(snapshot.weekly?.resetAt == Date(timeIntervalSince1970: 1_787_871_605))
         #expect(snapshot.updatedAt == updatedAt)
     }
 
@@ -24,6 +25,7 @@ struct ProviderDecoderTests {
         #expect(snapshot.session?.remainingPercentage == 48)
         #expect(snapshot.weekly?.remainingPercentage == 63)
         #expect(snapshot.session?.resetAt != nil)
+        #expect(snapshot.weekly?.resetAt == ISO8601DateFormatter().date(from: "2026-08-29T09:00:00Z"))
     }
 
     @Test("Missing provider windows is a schema error")

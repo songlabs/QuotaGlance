@@ -34,23 +34,61 @@ public enum RemainingLevel: String, Codable, Equatable, Sendable {
 
 public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let provider: AIProvider
+    public let accountIdentifier: UUID?
     public let session: UsageWindow?
     public let weekly: UsageWindow?
     public let updatedAt: Date
 
     public init(
         provider: AIProvider,
+        accountIdentifier: UUID? = nil,
         session: UsageWindow?,
         weekly: UsageWindow?,
         updatedAt: Date
     ) {
         self.provider = provider
+        self.accountIdentifier = accountIdentifier
         self.session = session
         self.weekly = weekly
         self.updatedAt = updatedAt
     }
 
-    public var id: AIProvider { provider }
+    public var id: String {
+        accountIdentifier.map { "\(provider.rawValue).\($0.uuidString)" } ?? provider.rawValue
+    }
+
+    public func assigned(to accountIdentifier: UUID) -> UsageSnapshot {
+        UsageSnapshot(
+            provider: provider,
+            accountIdentifier: accountIdentifier,
+            session: session,
+            weekly: weekly,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+public struct ProviderAccount: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public let provider: AIProvider
+    public let ordinal: Int
+    public let identityLabel: String?
+
+    public init(id: UUID, provider: AIProvider, ordinal: Int, identityLabel: String? = nil) {
+        self.id = id
+        self.provider = provider
+        self.ordinal = ordinal
+        self.identityLabel = identityLabel
+    }
+
+    public func replacingIdentityLabel(_ identityLabel: String?) -> ProviderAccount {
+        ProviderAccount(
+            id: id,
+            provider: provider,
+            ordinal: ordinal,
+            identityLabel: identityLabel ?? self.identityLabel
+        )
+    }
 }
 
 public struct SnapshotEnvelope: Codable, Equatable, Sendable {
@@ -66,6 +104,16 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {
         snapshots.first { $0.provider == provider }
+    }
+
+    public func snapshot(for provider: AIProvider, accountIdentifier: UUID?) -> UsageSnapshot? {
+        if let accountIdentifier,
+           let exact = snapshots.first(where: {
+               $0.provider == provider && $0.accountIdentifier == accountIdentifier
+           }) {
+            return exact
+        }
+        return snapshot(for: provider)
     }
 }
 

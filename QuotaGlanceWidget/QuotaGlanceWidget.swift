@@ -66,7 +66,10 @@ private struct PhoneWidgetView: View {
 
     private func small(_ envelope: SnapshotEnvelope) -> some View {
         let provider = WidgetSnapshotReader.defaultProvider
-        let snapshot = envelope.snapshot(for: provider) ?? envelope.snapshots[0]
+        let snapshot = envelope.snapshot(
+            for: provider,
+            accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
+        ) ?? envelope.snapshots[0]
         return VStack(alignment: .leading, spacing: 5) {
             Text(snapshot.provider.displayName.uppercased())
                 .font(.caption2.weight(.semibold))
@@ -89,7 +92,10 @@ private struct PhoneWidgetView: View {
     private func medium(_ envelope: SnapshotEnvelope) -> some View {
         HStack(spacing: 12) {
             ForEach(AIProvider.allCases) { provider in
-                if let snapshot = envelope.snapshot(for: provider) {
+                if let snapshot = envelope.snapshot(
+                    for: provider,
+                    accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
+                ) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(provider.displayName.uppercased())
                             .font(.caption2.weight(.semibold))
@@ -125,6 +131,7 @@ private enum WidgetSnapshotReader {
     static let suiteName = "group.com.songlabs.QuotaGlance"
     static let key = "usageSnapshotEnvelope"
     static let defaultProviderKey = "defaultProvider"
+    static let selectedAccountKeyPrefix = "selectedAccount."
 
     static func load() -> SnapshotEnvelope? {
         guard let data = UserDefaults(suiteName: suiteName)?.data(forKey: key) else { return nil }
@@ -133,6 +140,12 @@ private enum WidgetSnapshotReader {
 
     static var defaultProvider: AIProvider {
         UserDefaults(suiteName: suiteName)?.string(forKey: defaultProviderKey).flatMap(AIProvider.init(rawValue:)) ?? .codex
+    }
+
+    static func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
+        UserDefaults(suiteName: suiteName)?
+            .string(forKey: selectedAccountKeyPrefix + provider.rawValue)
+            .flatMap(UUID.init(uuidString:))
     }
 }
 

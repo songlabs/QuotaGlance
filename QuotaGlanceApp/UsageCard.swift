@@ -3,22 +3,33 @@ import SwiftUI
 
 struct UsageCard: View {
     let snapshot: UsageSnapshot
+    let accountName: String
     let isRefreshing: Bool
     let errorMessage: String?
+    let refresh: () async -> Void
     let reconnect: (() async -> Void)?
+    @Environment(\.locale) private var locale
 
     private var primaryWindow: UsageWindow? { snapshot.session }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(snapshot.provider.displayName)
+                Text(accountName)
                     .font(.headline)
                     .foregroundStyle(snapshot.provider.accent)
                 Spacer()
                 if isRefreshing {
                     ProgressView().controlSize(.small).tint(snapshot.provider.accent)
                 }
+                Button {
+                    Task { await refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .disabled(isRefreshing)
+                .accessibilityLabel("Refresh account")
             }
 
             HStack(spacing: 18) {
@@ -43,7 +54,11 @@ struct UsageCard: View {
             WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
 
             HStack(alignment: .firstTextBaseline) {
-                Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
+                Text(String(
+                    localized: "data.updated",
+                    defaultValue: "Data updated: \(localDateTime(snapshot.updatedAt, locale: locale))",
+                    locale: locale
+                ))
                     .foregroundStyle(isStale ? .secondary : .tertiary)
                 Spacer()
                 if isStale {
@@ -61,7 +76,11 @@ struct UsageCard: View {
             }
 
             if let reconnect {
-                Button(String(localized: "reconnect.provider", defaultValue: "Reconnect \(snapshot.provider.displayName)")) {
+                Button(String(
+                    localized: "reconnect.provider",
+                    defaultValue: "Reconnect \(snapshot.provider.displayName)",
+                    locale: locale
+                )) {
                     Task { await reconnect() }
                 }
                 .buttonStyle(.bordered)
@@ -82,15 +101,16 @@ struct UsageCard: View {
     }
 
     private func resetText(_ date: Date?) -> String {
-        guard let date else { return String(localized: "Reset —") }
-        let time = date.formatted(date: .omitted, time: .shortened)
-        return String(localized: "reset.time", defaultValue: "Reset \(time)")
+        guard let date else { return String(localized: "Reset —", locale: locale) }
+        let time = localDateTime(date, locale: locale)
+        return String(localized: "reset.time", defaultValue: "Reset \(time)", locale: locale)
     }
 }
 
 private struct UsageRing: View {
     let window: UsageWindow?
     let accent: Color
+    @Environment(\.locale) private var locale
 
     var body: some View {
         ZStack {
@@ -107,8 +127,12 @@ private struct UsageRing: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("5 hour remaining")
         .accessibilityValue(window.map {
-            String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
-        } ?? String(localized: "Not available"))
+            String(
+                localized: "percent.value",
+                defaultValue: "\($0.roundedRemainingPercentage) percent",
+                locale: locale
+            )
+        } ?? String(localized: "Not available", locale: locale))
     }
 
     private var ringColor: Color {
@@ -120,21 +144,48 @@ private struct UsageRing: View {
 private struct WeeklyRow: View {
     let window: UsageWindow?
     let accent: Color
+    @Environment(\.locale) private var locale
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("Weekly")
-                .font(.subheadline.weight(.medium))
-                .frame(width: 58, alignment: .leading)
-            ProgressView(value: window?.remainingPercentage ?? 0, total: 100)
-                .tint(window?.level.color(normal: accent) ?? .secondary)
-                .accessibilityLabel("Weekly remaining")
-            Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
-                .font(.subheadline.bold())
-                .monospacedDigit()
-                .frame(width: 42, alignment: .trailing)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Text("Weekly")
+                    .font(.subheadline.weight(.medium))
+                    .frame(width: 58, alignment: .leading)
+                ProgressView(value: window?.remainingPercentage ?? 0, total: 100)
+                    .tint(window?.level.color(normal: accent) ?? .secondary)
+                    .accessibilityLabel("Weekly remaining")
+                Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
+                    .font(.subheadline.bold())
+                    .monospacedDigit()
+                    .frame(width: 42, alignment: .trailing)
+            }
+
+            if let resetAt = window?.resetAt {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Next update")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(localDateTime(resetAt, locale: locale))
+                        .monospacedDigit()
+                }
+                .font(.caption)
+            } else if window != nil {
+                Text("Update time not provided")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
+}
+
+private func localDateTime(_ date: Date, locale: Locale) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.timeZone = .autoupdatingCurrent
+    formatter.dateStyle = .short
+    formatter.timeStyle = .short
+    return formatter.string(from: date)
 }
 
 extension AIProvider {

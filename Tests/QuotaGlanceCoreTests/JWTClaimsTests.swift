@@ -43,6 +43,16 @@ struct JWTClaimsTests {
         #expect(JWTClaims.chatGPTAccountID(in: token) == "official")
     }
 
+    @Test("Email is used as the safe Codex account label")
+    func accountDisplayName() throws {
+        let token = try jwt(payload: [
+            "email": "person@example.com",
+            "name": "Example Person",
+        ])
+
+        #expect(JWTClaims.accountDisplayName(in: token) == "person@example.com")
+    }
+
     private func jwt(payload: [String: Any]) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         let encodedPayload = data.base64EncodedString()
