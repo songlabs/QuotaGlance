@@ -206,6 +206,13 @@ final class DashboardStore {
         publishSnapshots()
     }
 
+    func renameAccount(_ accountIdentifier: UUID, name: String) {
+        guard let account = accounts.first(where: { $0.id == accountIdentifier }) else { return }
+        let updatedAccount = account.replacingCustomDisplayName(name)
+        registry.update(updatedAccount, in: &accounts)
+        states[accountIdentifier]?.account = updatedAccount
+    }
+
     func refreshAll(force: Bool) async {
         for account in accounts where states[account.id]?.isConnected == true {
             if !force,

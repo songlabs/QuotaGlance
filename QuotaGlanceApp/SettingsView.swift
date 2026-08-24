@@ -6,6 +6,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @State private var accountPendingDeletion: ProviderAccount?
+    @State private var accountPendingRename: ProviderAccount?
+    @State private var accountNameDraft = ""
 
     var body: some View {
         NavigationStack {
@@ -60,6 +62,21 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert("Rename account", isPresented: Binding(
+            get: { accountPendingRename != nil },
+            set: { if !$0 { accountPendingRename = nil } }
+        )) {
+            TextField("Account name", text: $accountNameDraft)
+            Button("Save") {
+                if let account = accountPendingRename {
+                    store.renameAccount(account.id, name: accountNameDraft)
+                }
+                accountPendingRename = nil
+            }
+            Button("Cancel", role: .cancel) { accountPendingRename = nil }
+        } message: {
+            Text("Leave blank to use the account identity.")
+        }
         .confirmationDialog(
             "Delete account?",
             isPresented: Binding(
@@ -103,6 +120,12 @@ struct SettingsView: View {
             }
             .accessibilityLabel("Delete account")
         }
+        .contextMenu {
+            Button("Rename", systemImage: "pencil") {
+                accountNameDraft = account.customDisplayName ?? ""
+                accountPendingRename = account
+            }
+        }
     }
 
     @ViewBuilder
@@ -128,11 +151,11 @@ struct SettingsView: View {
     }
 
     private func accountName(_ account: ProviderAccount) -> String {
-        account.identityLabel ?? String(
+        account.displayName(fallback: String(
             localized: "account.number",
             defaultValue: "Account \(account.ordinal)",
             locale: locale
-        )
+        ))
     }
 
     private var version: String {

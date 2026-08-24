@@ -72,4 +72,33 @@ struct UsageModelsTests {
         #expect(envelope.snapshot(for: .codex, accountIdentifier: firstID) == first)
         #expect(envelope.snapshot(for: .codex, accountIdentifier: secondID) == second)
     }
+
+    @Test("Account display name follows custom, identity, then fallback priority")
+    func accountDisplayNamePriority() {
+        let identified = ProviderAccount(
+            id: UUID(),
+            provider: .codex,
+            ordinal: 2,
+            identityLabel: "sou@example.com"
+        )
+        let renamed = identified.replacingCustomDisplayName("  仕事用 Codex  ")
+
+        #expect(renamed.displayName(fallback: "Account 2") == "仕事用 Codex")
+        #expect(identified.displayName(fallback: "Account 2") == "sou@example.com")
+        #expect(renamed.replacingCustomDisplayName("  \n").displayName(fallback: "Account 2") == "sou@example.com")
+
+        let anonymous = ProviderAccount(id: UUID(), provider: .codex, ordinal: 3)
+        #expect(anonymous.displayName(fallback: "Account 3") == "Account 3")
+    }
+
+    @Test("Legacy account JSON decodes without a custom display name")
+    func legacyAccountCompatibility() throws {
+        let id = UUID()
+        let legacyJSON = #"{"id":"\#(id.uuidString)","provider":"codex","ordinal":1,"identityLabel":"old@example.com"}"#
+        let account = try JSONDecoder().decode(ProviderAccount.self, from: Data(legacyJSON.utf8))
+
+        #expect(account.id == id)
+        #expect(account.identityLabel == "old@example.com")
+        #expect(account.customDisplayName == nil)
+    }
 }
