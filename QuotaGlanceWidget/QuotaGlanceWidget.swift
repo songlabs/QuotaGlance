@@ -54,11 +54,14 @@ private struct PhoneWidgetView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                Text("QuotaGlance").font(.headline)
+                Text("QuotaGlance")
+                    .font(.headline)
+                    .foregroundStyle(.white)
                 Image(systemName: "iphone.and.arrow.forward")
+                    .foregroundStyle(.white)
                 Text("Open the iPhone app to refresh usage.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.7))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -77,14 +80,17 @@ private struct PhoneWidgetView: View {
             Text(snapshot.session.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .monospacedDigit()
+                .foregroundStyle(.white)
             Label("5h remaining", systemImage: "clock")
                 .font(.caption2)
+                .foregroundStyle(.white)
             Text(weeklyText(snapshot.weekly))
                 .font(.caption.bold())
+                .foregroundStyle(.white)
             Spacer(minLength: 0)
             Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -103,13 +109,17 @@ private struct PhoneWidgetView: View {
                         Text(snapshot.session.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                             .font(.title.bold())
                             .monospacedDigit()
-                        Text("5h remaining").font(.caption2).foregroundStyle(.secondary)
+                            .foregroundStyle(.white)
+                        Text("5h remaining")
+                            .font(.caption2)
+                            .foregroundStyle(.white)
                         Text(weeklyText(snapshot.weekly))
                             .font(.caption.bold())
+                            .foregroundStyle(.white)
                         Spacer(minLength: 0)
                         Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
