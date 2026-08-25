@@ -93,18 +93,28 @@ final class CodexUsageProvider: UsageProvider {
         try credentials.delete(provider, accountIdentifier: accountIdentifier)
     }
 
+    func accountIdentityLabel(accountIdentifier: UUID) async throws -> String? {
+        guard let credential = try credentials.load(provider, accountIdentifier: accountIdentifier) else {
+            return nil
+        }
+        if let label = JWTClaims.accountDisplayName(in: credential.accessToken) {
+            return label
+        }
+        return (try await refresh(credential, accountIdentifier: accountIdentifier)).identityLabel
+    }
+
     func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot {
         guard var credential = try credentials.load(provider, accountIdentifier: accountIdentifier) else {
             throw UsageProviderError.noAccount
         }
         if credential.expiresAt <= Date().addingTimeInterval(60) {
-            credential = try await refresh(credential, accountIdentifier: accountIdentifier)
+            credential = try await refresh(credential, accountIdentifier: accountIdentifier).credential
         }
 
         do {
             return try await requestUsage(credential)
         } catch UsageProviderError.rejected(statusCode: 401) {
-            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier)
+            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier).credential
             return try await requestUsage(refreshed)
         }
     }
@@ -121,7 +131,10 @@ final class CodexUsageProvider: UsageProvider {
         return try UsageResponseDecoder.decodeCodex(data)
     }
 
-    private func refresh(_ credential: OAuthCredential, accountIdentifier: UUID) async throws -> OAuthCredential {
+    private func refresh(
+        _ credential: OAuthCredential,
+        accountIdentifier: UUID
+    ) async throws -> (credential: OAuthCredential, identityLabel: String?) {
         var request = URLRequest(url: tokenEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -154,7 +167,7 @@ final class CodexUsageProvider: UsageProvider {
             accountID: idToken.flatMap { JWTClaims.chatGPTAccountID(in: $0) }
         )
         try credentials.save(refreshed, accountIdentifier: accountIdentifier)
-        return refreshed
+        return (refreshed, idToken.flatMap(JWTClaims.accountDisplayName(in:)))
     }
 
     private func authorizationCode(from callback: URL) throws -> String {

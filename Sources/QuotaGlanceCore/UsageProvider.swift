@@ -6,8 +6,13 @@ public protocol UsageProvider: AnyObject {
 
     func isConnected(accountIdentifier: UUID) -> Bool
     func connect(accountIdentifier: UUID) async throws -> String?
+    func accountIdentityLabel(accountIdentifier: UUID) async throws -> String?
     func disconnect(accountIdentifier: UUID) async throws
     func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot
+}
+
+public extension UsageProvider {
+    func accountIdentityLabel(accountIdentifier: UUID) async throws -> String? { nil }
 }
 public enum UsageProviderError: Error, Equatable, Sendable {
     case authenticationCancelled

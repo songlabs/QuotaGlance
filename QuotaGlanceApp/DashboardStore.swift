@@ -21,7 +21,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     func displayName(locale: Locale) -> String {
         switch self {
-        case .system: String(localized: "System Language", locale: locale)
+        case .system: AppLocalization.string("System Language", locale: locale)
         case .japanese: "日本語"
         case .simplifiedChinese: "简体中文"
         case .traditionalChinese: "繁體中文"
@@ -63,17 +63,17 @@ enum PresentationError: Equatable {
     func message(locale: Locale) -> String {
         switch self {
         case .network:
-            String(localized: "Unable to refresh. Check your connection.", locale: locale)
+            AppLocalization.string("Unable to refresh. Check your connection.", locale: locale)
         case .reconnect:
-            String(localized: "Session expired. Connect again.", locale: locale)
+            AppLocalization.string("Session expired. Connect again.", locale: locale)
         case .schemaChanged:
-            String(localized: "Provider response changed. Cached data is preserved.", locale: locale)
+            AppLocalization.string("Provider response changed. Cached data is preserved.", locale: locale)
         case .rateLimited:
-            String(localized: "Provider rate-limited refresh. Try again later.", locale: locale)
+            AppLocalization.string("Provider rate-limited refresh. Try again later.", locale: locale)
         case .alreadyConnected:
-            String(localized: "This account is already connected.", locale: locale)
+            AppLocalization.string("This account is already connected.", locale: locale)
         case .generic:
-            String(localized: "Something went wrong. Try again.", locale: locale)
+            AppLocalization.string("Something went wrong. Try again.", locale: locale)
         }
     }
 }
@@ -221,6 +221,22 @@ final class DashboardStore {
                 continue
             }
             await refresh(account.id)
+        }
+    }
+
+    func backfillAccountIdentityLabels() async {
+        for account in accounts where account.identityLabel == nil && states[account.id]?.isConnected == true {
+            guard let provider = providers[account.provider] else { continue }
+            do {
+                guard let identityLabel = try await provider.accountIdentityLabel(accountIdentifier: account.id) else {
+                    continue
+                }
+                let updatedAccount = account.replacingIdentityLabel(identityLabel)
+                registry.update(updatedAccount, in: &accounts)
+                states[account.id]?.account = updatedAccount
+            } catch {
+                // Identity enrichment is best effort and must not block usage refresh.
+            }
         }
     }
 

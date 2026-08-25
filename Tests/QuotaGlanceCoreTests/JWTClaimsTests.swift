@@ -66,6 +66,13 @@ struct JWTClaimsTests {
         #expect(JWTClaims.accountDisplayName(in: emailToken) == "person@example.com")
     }
 
+    @Test("Display name is absent when all readable claims are missing")
+    func missingAccountDisplayName() throws {
+        let token = try jwt(payload: ["sub": "opaque-user-id"])
+
+        #expect(JWTClaims.accountDisplayName(in: token) == nil)
+    }
+
     private func jwt(payload: [String: Any]) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
         let encodedPayload = data.base64EncodedString()

@@ -29,20 +29,20 @@ struct UsageCard: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isRefreshing)
-                .accessibilityLabel("Refresh account")
+                .accessibilityLabel(AppLocalization.string("Refresh account", locale: locale))
             }
 
             HStack(spacing: 18) {
                 UsageRing(window: primaryWindow, accent: snapshot.provider.accent)
                     .frame(width: 88, height: 88)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "5h remaining", locale: locale))
+                    Text(AppLocalization.string("5h remaining", locale: locale))
                         .font(.headline)
                     Text(resetText(primaryWindow?.resetAt))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if primaryWindow == nil {
-                        Text(String(localized: "Not reported by provider", locale: locale))
+                        Text(AppLocalization.string("Not reported by provider", locale: locale))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -54,15 +54,16 @@ struct UsageCard: View {
             WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
 
             HStack(alignment: .firstTextBaseline) {
-                Text(String(
-                    localized: "data.updated",
-                    defaultValue: "Data updated: \(localDateTime(snapshot.updatedAt, locale: locale))",
-                    locale: locale
+                Text(AppLocalization.string(
+                    "data.updated",
+                    defaultValue: "Data updated: %@",
+                    locale: locale,
+                    arguments: [localDateTime(snapshot.updatedAt, locale: locale)]
                 ))
                     .foregroundStyle(isStale ? .secondary : .tertiary)
                 Spacer()
                 if isStale {
-                    Label(String(localized: "Cached", locale: locale), systemImage: "clock.arrow.circlepath")
+                    Label(AppLocalization.string("Cached", locale: locale), systemImage: "clock.arrow.circlepath")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -76,10 +77,11 @@ struct UsageCard: View {
             }
 
             if let reconnect {
-                Button(String(
-                    localized: "reconnect.provider",
-                    defaultValue: "Reconnect \(snapshot.provider.displayName)",
-                    locale: locale
+                Button(AppLocalization.string(
+                    "reconnect.provider",
+                    defaultValue: "Reconnect %@",
+                    locale: locale,
+                    arguments: [snapshot.provider.displayName]
                 )) {
                     Task { await reconnect() }
                 }
@@ -101,9 +103,9 @@ struct UsageCard: View {
     }
 
     private func resetText(_ date: Date?) -> String {
-        guard let date else { return String(localized: "Reset —", locale: locale) }
+        guard let date else { return AppLocalization.string("Reset —", locale: locale) }
         let time = localDateTime(date, locale: locale)
-        return String(localized: "reset.time", defaultValue: "Reset \(time)", locale: locale)
+        return AppLocalization.string("reset.time", defaultValue: "Reset %@", locale: locale, arguments: [time])
     }
 }
 
@@ -125,14 +127,15 @@ private struct UsageRing: View {
                 .minimumScaleFactor(0.7)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "5 hour remaining", locale: locale))
+        .accessibilityLabel(AppLocalization.string("5 hour remaining", locale: locale))
         .accessibilityValue(window.map {
-            String(
-                localized: "percent.value",
-                defaultValue: "\($0.roundedRemainingPercentage) percent",
-                locale: locale
+            AppLocalization.string(
+                "percent.value",
+                defaultValue: "%lld percent",
+                locale: locale,
+                arguments: [$0.roundedRemainingPercentage]
             )
-        } ?? String(localized: "Not available", locale: locale))
+        } ?? AppLocalization.string("Not available", locale: locale))
     }
 
     private var ringColor: Color {
@@ -149,12 +152,12 @@ private struct WeeklyRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Text(String(localized: "Weekly", locale: locale))
+                Text(AppLocalization.string("Weekly", locale: locale))
                     .font(.subheadline.weight(.medium))
                     .frame(width: 58, alignment: .leading)
                 ProgressView(value: window?.remainingPercentage ?? 0, total: 100)
                     .tint(window?.level.color(normal: accent) ?? .secondary)
-                    .accessibilityLabel(String(localized: "Weekly remaining", locale: locale))
+                    .accessibilityLabel(AppLocalization.string("Weekly remaining", locale: locale))
                 Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                     .font(.subheadline.bold())
                     .monospacedDigit()
@@ -163,7 +166,7 @@ private struct WeeklyRow: View {
 
             if let resetAt = window?.resetAt {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(String(localized: "Next update", locale: locale))
+                    Text(AppLocalization.string("Next update", locale: locale))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(localDateTime(resetAt, locale: locale))
@@ -171,7 +174,7 @@ private struct WeeklyRow: View {
                 }
                 .font(.caption)
             } else if window != nil {
-                Text(String(localized: "Update time not provided", locale: locale))
+                Text(AppLocalization.string("Update time not provided", locale: locale))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

@@ -12,8 +12,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Language") {
-                    Picker("Language", selection: $store.appLanguage) {
+                Section(AppLocalization.string("Language", locale: locale)) {
+                    Picker(AppLocalization.string("Language", locale: locale), selection: $store.appLanguage) {
                         ForEach(AppLanguage.allCases) { language in
                             Text(language.displayName(locale: locale)).tag(language)
                         }
@@ -28,14 +28,14 @@ struct SettingsView: View {
                         Button {
                             Task { await store.addAccount(provider) }
                         } label: {
-                            Label("Add account", systemImage: "plus")
+                            Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                         }
                         .disabled(store.connectingProviders.contains(provider))
                     }
                 }
 
-                Section("Display") {
-                    Picker("Default provider", selection: Binding(
+                Section(AppLocalization.string("Display", locale: locale)) {
+                    Picker(AppLocalization.string("Default provider", locale: locale), selection: Binding(
                         get: { store.defaultProvider },
                         set: { store.defaultProvider = $0 }
                     )) {
@@ -49,36 +49,36 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("About") {
-                    LabeledContent("Privacy", value: "Credentials stay in Keychain")
-                    LabeledContent("Version", value: version)
+                Section(AppLocalization.string("About", locale: locale)) {
+                    LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
+                    LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(AppLocalization.string("Settings", locale: locale))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button(AppLocalization.string("Done", locale: locale)) { dismiss() }
                 }
             }
         }
         .preferredColorScheme(.dark)
-        .alert("Rename account", isPresented: Binding(
+        .alert(AppLocalization.string("Rename account", locale: locale), isPresented: Binding(
             get: { accountPendingRename != nil },
             set: { if !$0 { accountPendingRename = nil } }
         )) {
-            TextField("Account name", text: $accountNameDraft)
-            Button("Save") {
+            TextField(AppLocalization.string("Account name", locale: locale), text: $accountNameDraft)
+            Button(AppLocalization.string("Save", locale: locale)) {
                 if let account = accountPendingRename {
                     store.renameAccount(account.id, name: accountNameDraft)
                 }
                 accountPendingRename = nil
             }
-            Button("Cancel", role: .cancel) { accountPendingRename = nil }
+            Button(AppLocalization.string("Cancel", locale: locale), role: .cancel) { accountPendingRename = nil }
         } message: {
-            Text("Leave blank to use the account identity.")
+            Text(AppLocalization.string("Leave blank to use the account identity.", locale: locale))
         }
         .confirmationDialog(
-            "Delete account?",
+            AppLocalization.string("Delete account?", locale: locale),
             isPresented: Binding(
                 get: { accountPendingDeletion != nil },
                 set: { if !$0 { accountPendingDeletion = nil } }
@@ -86,14 +86,14 @@ struct SettingsView: View {
             titleVisibility: .visible
         ) {
             if let account = accountPendingDeletion {
-                Button("Delete account", role: .destructive) {
+                Button(AppLocalization.string("Delete account", locale: locale), role: .destructive) {
                     accountPendingDeletion = nil
                     Task { await store.deleteAccount(account.id) }
                 }
             }
-            Button("Cancel", role: .cancel) { accountPendingDeletion = nil }
+            Button(AppLocalization.string("Cancel", locale: locale), role: .cancel) { accountPendingDeletion = nil }
         } message: {
-            Text("This removes only the selected account and its cached usage data.")
+            Text(AppLocalization.string("This removes only the selected account and its cached usage data.", locale: locale))
         }
     }
 
@@ -103,13 +103,13 @@ struct SettingsView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(accountName(account))
-                Text(state?.isConnected == true ? String(localized: "Connected", locale: locale) : String(localized: "Not connected", locale: locale))
+                Text(state?.isConnected == true ? AppLocalization.string("Connected", locale: locale) : AppLocalization.string("Not connected", locale: locale))
                     .font(.caption)
                     .foregroundStyle(state?.isConnected == true ? .green : .secondary)
             }
             Spacer()
             if state?.isConnected == false {
-                Button("Reconnect") {
+                Button(AppLocalization.string("Reconnect", locale: locale)) {
                     Task { await store.reconnect(account.id) }
                 }
             }
@@ -118,10 +118,10 @@ struct SettingsView: View {
             } label: {
                 Image(systemName: "trash")
             }
-            .accessibilityLabel("Delete account")
+            .accessibilityLabel(AppLocalization.string("Delete account", locale: locale))
         }
         .contextMenu {
-            Button("Rename", systemImage: "pencil") {
+            Button(AppLocalization.string("Rename", locale: locale), systemImage: "pencil") {
                 accountNameDraft = account.customDisplayName ?? ""
                 accountPendingRename = account
             }
@@ -133,10 +133,11 @@ struct SettingsView: View {
         let providerAccounts = store.accounts(for: provider)
         if let selected = store.selectedAccountIdentifier(for: provider), !providerAccounts.isEmpty {
             Picker(
-                String(
-                    localized: "provider.display.account",
-                    defaultValue: "\(provider.displayName) Widget & Watch account",
-                    locale: locale
+                AppLocalization.string(
+                    "provider.display.account",
+                    defaultValue: "%@ Widget & Watch account",
+                    locale: locale,
+                    arguments: [provider.displayName]
                 ),
                 selection: Binding(
                     get: { store.selectedAccountIdentifier(for: provider) ?? selected },
@@ -151,10 +152,11 @@ struct SettingsView: View {
     }
 
     private func accountName(_ account: ProviderAccount) -> String {
-        account.displayName(fallback: String(
-            localized: "account.number",
-            defaultValue: "Account \(account.ordinal)",
-            locale: locale
+        account.displayName(fallback: AppLocalization.string(
+            "account.number",
+            defaultValue: "Account %lld",
+            locale: locale,
+            arguments: [account.ordinal]
         ))
     }
 
