@@ -44,12 +44,23 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          PROFILE_QUOTAGLANCE_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_BASE64 }}
+          PROFILE_QUOTAGLANCE_WIDGET_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WIDGET_BASE64 }}
+          PROFILE_QUOTAGLANCE_WATCH_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WATCH_BASE64 }}
+          PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64 }}
         run: |
           test -n "$ASC_KEY_ID" || { echo "Missing ASC_KEY_ID"; exit 1; }
           test -n "$ASC_ISSUER_ID" || { echo "Missing ASC_ISSUER_ID"; exit 1; }
           test -n "$ASC_PRIVATE_KEY" || { echo "Missing ASC_PRIVATE_KEY"; exit 1; }
-          test -n "$APPLE_TEAM_ID" || { echo "Missing repository variable APPLE_TEAM_ID"; exit 1; }
-          [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "Invalid APPLE_TEAM_ID"; exit 1; }
+          test -n "$APPLE_DISTRIBUTION_P12_BASE64" || { echo "Missing APPLE_DISTRIBUTION_P12_BASE64"; exit 1; }
+          test -n "$APPLE_DISTRIBUTION_P12_PASSWORD" || { echo "Missing APPLE_DISTRIBUTION_P12_PASSWORD"; exit 1; }
+          test -n "$PROFILE_QUOTAGLANCE_BASE64" || { echo "Missing PROFILE_QUOTAGLANCE_BASE64"; exit 1; }
+          test -n "$PROFILE_QUOTAGLANCE_WIDGET_BASE64" || { echo "Missing PROFILE_QUOTAGLANCE_WIDGET_BASE64"; exit 1; }
+          test -n "$PROFILE_QUOTAGLANCE_WATCH_BASE64" || { echo "Missing PROFILE_QUOTAGLANCE_WATCH_BASE64"; exit 1; }
+          test -n "$PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64" || { echo "Missing PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64"; exit 1; }
+          test "$APPLE_TEAM_ID" = "JCABFH9F66" || { echo "APPLE_TEAM_ID must be JCABFH9F66"; exit 1; }
 
       - name: Install App Store Connect API key
         env:
@@ -62,6 +73,16 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$KEY_PATH"
           chmod 600 "$KEY_PATH"
           echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Install and validate fixed distribution signing materials
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          PROFILE_QUOTAGLANCE_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_BASE64 }}
+          PROFILE_QUOTAGLANCE_WIDGET_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WIDGET_BASE64 }}
+          PROFILE_QUOTAGLANCE_WATCH_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WATCH_BASE64 }}
+          PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64: ${{ secrets.PROFILE_QUOTAGLANCE_WATCH_WIDGET_BASE64 }}
+        run: Scripts/install_distribution_signing.sh
 
       - name: Validate release version and set unique build number
         env:
@@ -115,23 +136,20 @@ jobs:
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
 
-      - name: Archive with automatic signing
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Archive with fixed manual distribution signing
         run: |
           set -o pipefail
+          security find-identity -v -p codesigning "$SIGNING_KEYCHAIN_PATH" | tee "$RUNNER_TEMP/signing-identities.log"
+          grep -q 'Apple Distribution:' "$RUNNER_TEMP/signing-identities.log" || {
+            echo "Apple Distribution identity is unavailable; automatic signing fallback is disabled." >&2
+            exit 1
+          }
           xcodebuild archive \
             -project QuotaGlance.xcodeproj \
             -scheme QuotaGlance \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/QuotaGlance.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" | tee "$RUNNER_TEMP/archive.log"
 
@@ -231,28 +249,29 @@ jobs:
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.songlabs.QuotaGlance</key><string>QuotaGlance App Store</string>
+              <key>com.songlabs.QuotaGlance.widget</key><string>QuotaGlance Widget App Store</string>
+              <key>com.songlabs.QuotaGlance.watchkitapp</key><string>QuotaGlance Watch App Store</string>
+              <key>com.songlabs.QuotaGlance.watchkitapp.widget</key><string>QuotaGlance Watch Widget App Store</string>
+            </dict>
             <key>manageAppVersionAndBuildNumber</key><false/>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
           </dict></plist>
           PLIST
 
-      - name: Export IPA
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Export IPA with fixed manual distribution signing
         run: |
           set -o pipefail
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/QuotaGlance.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" | tee "$RUNNER_TEMP/export.log"
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" | tee "$RUNNER_TEMP/export.log"
           test -f "$RUNNER_TEMP/export/QuotaGlance.ipa"
 
       - name: Upload to App Store Connect
@@ -306,6 +325,10 @@ jobs:
             --bundle-id "$APP_BUNDLE_ID" \
             --build-number "$BUILD_NUMBER" \
             --group-name "$INTERNAL_GROUP_NAME"
+
+      - name: Remove temporary signing materials
+        if: always()
+        run: Scripts/cleanup_distribution_signing.sh
 
       - name: Remove API key
         if: always()
