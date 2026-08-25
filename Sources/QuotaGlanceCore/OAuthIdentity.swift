@@ -1,10 +1,11 @@
 import Foundation
 
 public struct ClaudeOAuthAccount: Decodable, Equatable, Sendable {
-    public let uuid: String
-    public let emailAddress: String
+    public let uuid: String?
+    public let emailAddress: String?
 
     public var identityLabel: String? {
+        guard let emailAddress else { return nil }
         let trimmedEmail = emailAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedEmail.isEmpty ? nil : trimmedEmail
     }
@@ -16,5 +17,5 @@ public struct ClaudeOAuthAccount: Decodable, Equatable, Sendable {
 }
 
 public struct ClaudeOAuthOrganization: Decodable, Equatable, Sendable {
-    public let uuid: String
+    public let uuid: String?
 }

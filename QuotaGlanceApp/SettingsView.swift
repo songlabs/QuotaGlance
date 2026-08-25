@@ -46,16 +46,16 @@ struct SettingsView: View {
                         }
                     }
 
+                    ForEach(AIProvider.allCases) { provider in
+                        selectedAccountPicker(provider)
+                    }
+
                     Picker(AppLocalization.string("Widget & Watch quota", locale: locale), selection: Binding(
                         get: { store.displayLimit },
                         set: { store.displayLimit = $0 }
                     )) {
                         Text(AppLocalization.string("5 hours", locale: locale)).tag(QuotaDisplayLimit.fiveHour)
                         Text(AppLocalization.string("Weekly", locale: locale)).tag(QuotaDisplayLimit.weekly)
-                    }
-
-                    ForEach(AIProvider.allCases) { provider in
-                        selectedAccountPicker(provider)
                     }
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)

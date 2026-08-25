@@ -86,9 +86,21 @@ try {
     Write-CatalogImages -Source $master -CatalogDirectory (
         Join-Path $repoRoot "QuotaGlanceWatch/Resources/Assets.xcassets/AppIcon.appiconset"
     )
-    Write-RgbSquarePng -Source $master -PixelSize 1024 -OutputPath (
+    foreach ($brandSize in @(128, 256, 384)) {
+        Write-RgbSquarePng -Source $master -PixelSize $brandSize -OutputPath (
+            Join-Path $repoRoot "SharedUI/Resources/QuotaGlanceBrand.xcassets/QuotaGlanceBrandIcon.imageset/QuotaGlanceBrandIcon-$brandSize.png"
+        )
+    }
+
+    $obsoleteBrandPath = [System.IO.Path]::GetFullPath((
         Join-Path $repoRoot "SharedUI/Resources/QuotaGlanceBrand.xcassets/QuotaGlanceBrandIcon.imageset/QuotaGlanceBrandIcon-1024.png"
-    )
+    ))
+    if (-not $obsoleteBrandPath.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove outside repository: $obsoleteBrandPath"
+    }
+    if (Test-Path -LiteralPath $obsoleteBrandPath) {
+        Remove-Item -LiteralPath $obsoleteBrandPath
+    }
 } finally {
     $master.Dispose()
 }
