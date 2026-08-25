@@ -43,14 +43,27 @@ struct JWTClaimsTests {
         #expect(JWTClaims.chatGPTAccountID(in: token) == "official")
     }
 
-    @Test("Email is used as the safe Codex account label")
+    @Test("Display name is preferred over username and email")
     func accountDisplayName() throws {
         let token = try jwt(payload: [
             "email": "person@example.com",
+            "preferred_username": "person",
             "name": "Example Person",
         ])
 
-        #expect(JWTClaims.accountDisplayName(in: token) == "person@example.com")
+        #expect(JWTClaims.accountDisplayName(in: token) == "Example Person")
+    }
+
+    @Test("Namespaced profile and top-level email are readable fallbacks")
+    func accountDisplayNameFallbacks() throws {
+        let profileToken = try jwt(payload: [
+            "email": "person@example.com",
+            "https://api.openai.com/profile": ["preferred_username": "profile-person"],
+        ])
+        let emailToken = try jwt(payload: ["email": " person@example.com "])
+
+        #expect(JWTClaims.accountDisplayName(in: profileToken) == "profile-person")
+        #expect(JWTClaims.accountDisplayName(in: emailToken) == "person@example.com")
     }
 
     private func jwt(payload: [String: Any]) throws -> String {

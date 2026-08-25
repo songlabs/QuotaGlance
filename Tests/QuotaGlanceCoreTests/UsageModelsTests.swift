@@ -101,4 +101,17 @@ struct UsageModelsTests {
         #expect(account.identityLabel == "old@example.com")
         #expect(account.customDisplayName == nil)
     }
+
+    @Test("Distinct account identities survive persistence and a missing refresh identity")
+    func accountIdentityPersistence() throws {
+        let first = ProviderAccount(id: UUID(), provider: .codex, ordinal: 1, identityLabel: "one@example.com")
+        let second = ProviderAccount(id: UUID(), provider: .codex, ordinal: 2, identityLabel: "Two Person")
+        let restored = try JSONDecoder().decode(
+            [ProviderAccount].self,
+            from: JSONEncoder().encode([first, second])
+        )
+
+        #expect(restored.map { $0.displayName(fallback: "fallback") } == ["one@example.com", "Two Person"])
+        #expect(restored[0].replacingIdentityLabel(nil).identityLabel == "one@example.com")
+    }
 }
