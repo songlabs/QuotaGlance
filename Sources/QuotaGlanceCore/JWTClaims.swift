@@ -2,6 +2,7 @@ import Foundation
 
 public enum JWTClaims {
     private static let openAIAuthClaim = "https://api.openai.com/auth"
+    private static let openAIProfileClaim = "https://api.openai.com/profile"
 
     public static func chatGPTAccountID(in token: String) -> String? {
         let claims = payload(in: token)
@@ -19,13 +20,19 @@ public enum JWTClaims {
 
     public static func accountDisplayName(in token: String) -> String? {
         guard let claims = payload(in: token) else { return nil }
-        for key in ["email", "preferred_username", "name"] {
-            if let value = claims[key] as? String {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { return trimmed }
+        let profiles = [claims, claims[openAIProfileClaim] as? [String: Any]].compactMap { $0 }
+        for key in ["name", "preferred_username", "email"] {
+            for profile in profiles {
+                if let value = readableString(profile[key]) { return value }
             }
         }
         return nil
+    }
+
+    private static func readableString(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func payload(in token: String) -> [String: Any]? {

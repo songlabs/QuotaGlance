@@ -36,13 +36,13 @@ struct UsageCard: View {
                 UsageRing(window: primaryWindow, accent: snapshot.provider.accent)
                     .frame(width: 88, height: 88)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("5h remaining")
+                    Text(String(localized: "5h remaining", locale: locale))
                         .font(.headline)
                     Text(resetText(primaryWindow?.resetAt))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if primaryWindow == nil {
-                        Text("Not reported by provider")
+                        Text(String(localized: "Not reported by provider", locale: locale))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -62,7 +62,7 @@ struct UsageCard: View {
                     .foregroundStyle(isStale ? .secondary : .tertiary)
                 Spacer()
                 if isStale {
-                    Label("Cached", systemImage: "clock.arrow.circlepath")
+                    Label(String(localized: "Cached", locale: locale), systemImage: "clock.arrow.circlepath")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -125,7 +125,7 @@ private struct UsageRing: View {
                 .minimumScaleFactor(0.7)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("5 hour remaining")
+        .accessibilityLabel(String(localized: "5 hour remaining", locale: locale))
         .accessibilityValue(window.map {
             String(
                 localized: "percent.value",
@@ -149,12 +149,12 @@ private struct WeeklyRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Text("Weekly")
+                Text(String(localized: "Weekly", locale: locale))
                     .font(.subheadline.weight(.medium))
                     .frame(width: 58, alignment: .leading)
                 ProgressView(value: window?.remainingPercentage ?? 0, total: 100)
                     .tint(window?.level.color(normal: accent) ?? .secondary)
-                    .accessibilityLabel("Weekly remaining")
+                    .accessibilityLabel(String(localized: "Weekly remaining", locale: locale))
                 Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                     .font(.subheadline.bold())
                     .monospacedDigit()
@@ -163,7 +163,7 @@ private struct WeeklyRow: View {
 
             if let resetAt = window?.resetAt {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Next update")
+                    Text(String(localized: "Next update", locale: locale))
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text(localDateTime(resetAt, locale: locale))
@@ -171,7 +171,7 @@ private struct WeeklyRow: View {
                 }
                 .font(.caption)
             } else if window != nil {
-                Text("Update time not provided")
+                Text(String(localized: "Update time not provided", locale: locale))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
