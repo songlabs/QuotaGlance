@@ -14,6 +14,7 @@ final class AppGroupSnapshotCache: SnapshotCaching {
     static let suiteName = "group.com.songlabs.QuotaGlance"
     static let snapshotsKey = "usageSnapshotEnvelope"
     static let defaultProviderKey = "defaultProvider"
+    static let displayLimitKey = "displayLimit"
     static let selectedAccountKeyPrefix = "selectedAccount."
 
     private let defaults: UserDefaults?
@@ -55,6 +56,15 @@ final class AppGroupSnapshotCache: SnapshotCaching {
         }
         set {
             defaults?.set(newValue.rawValue, forKey: Self.defaultProviderKey)
+        }
+    }
+
+    var displayLimit: QuotaDisplayLimit {
+        get {
+            defaults?.string(forKey: Self.displayLimitKey).flatMap(QuotaDisplayLimit.init(rawValue:)) ?? .fiveHour
+        }
+        set {
+            defaults?.set(newValue.rawValue, forKey: Self.displayLimitKey)
         }
     }
 

@@ -34,4 +34,8 @@ final class WatchDashboardStore {
     var latestUpdatedAt: Date? {
         snapshots.values.map(\.updatedAt).max()
     }
+
+    var displayLimit: QuotaDisplayLimit {
+        cache.load()?.displayLimit ?? .fiveHour
+    }
 }

@@ -167,7 +167,10 @@ final class DashboardStore {
 
         let migratedSnapshots = loadedAccounts.compactMap { initialStates[$0.id]?.snapshot }
         if !migratedSnapshots.isEmpty {
-            let migratedEnvelope = SnapshotEnvelope(snapshots: migratedSnapshots)
+            let migratedEnvelope = SnapshotEnvelope(
+                snapshots: migratedSnapshots,
+                displayLimit: displayLimit
+            )
             try? cache.save(migratedEnvelope)
             let watchSnapshots = AIProvider.allCases.compactMap { provider in
                 migratedEnvelope.snapshot(
@@ -175,7 +178,10 @@ final class DashboardStore {
                     accountIdentifier: cache.selectedAccountIdentifier(for: provider)
                 )
             }
-            watchSync.send(SnapshotEnvelope(snapshots: watchSnapshots))
+            watchSync.send(SnapshotEnvelope(
+                snapshots: watchSnapshots,
+                displayLimit: displayLimit
+            ))
         }
     }
 
@@ -184,6 +190,14 @@ final class DashboardStore {
         set {
             (cache as? AppGroupSnapshotCache)?.defaultProvider = newValue
             WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
+    var displayLimit: QuotaDisplayLimit {
+        get { (cache as? AppGroupSnapshotCache)?.displayLimit ?? .fiveHour }
+        set {
+            (cache as? AppGroupSnapshotCache)?.displayLimit = newValue
+            publishSnapshots()
         }
     }
 
@@ -368,7 +382,10 @@ final class DashboardStore {
 
     private func publishSnapshots() {
         let snapshots = accounts.compactMap { states[$0.id]?.snapshot }
-        let envelope = SnapshotEnvelope(snapshots: snapshots)
+        let envelope = SnapshotEnvelope(
+            snapshots: snapshots,
+            displayLimit: displayLimit
+        )
         try? cache.save(envelope)
 
         let watchSnapshots = AIProvider.allCases.compactMap { provider in
@@ -377,7 +394,10 @@ final class DashboardStore {
                 accountIdentifier: selectedAccountIdentifier(for: provider)
             )
         }
-        watchSync.send(SnapshotEnvelope(snapshots: watchSnapshots))
+        watchSync.send(SnapshotEnvelope(
+            snapshots: watchSnapshots,
+            displayLimit: displayLimit
+        ))
         WidgetCenter.shared.reloadAllTimelines()
     }
 

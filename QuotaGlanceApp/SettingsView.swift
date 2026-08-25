@@ -19,6 +19,7 @@ struct SettingsView: View {
                         }
                     }
                 }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 ForEach(AIProvider.allCases) { provider in
                     Section(provider.displayName) {
@@ -32,6 +33,7 @@ struct SettingsView: View {
                         }
                         .disabled(store.connectingProviders.contains(provider))
                     }
+                    .listRowBackground(QuotaGlanceTheme.cardBackground)
                 }
 
                 Section(AppLocalization.string("Display", locale: locale)) {
@@ -44,16 +46,28 @@ struct SettingsView: View {
                         }
                     }
 
+                    Picker(AppLocalization.string("Widget & Watch quota", locale: locale), selection: Binding(
+                        get: { store.displayLimit },
+                        set: { store.displayLimit = $0 }
+                    )) {
+                        Text(AppLocalization.string("5 hours", locale: locale)).tag(QuotaDisplayLimit.fiveHour)
+                        Text(AppLocalization.string("Weekly", locale: locale)).tag(QuotaDisplayLimit.weekly)
+                    }
+
                     ForEach(AIProvider.allCases) { provider in
                         selectedAccountPicker(provider)
                     }
                 }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 Section(AppLocalization.string("About", locale: locale)) {
                     LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
                     LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
                 }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
             }
+            .scrollContentBackground(.hidden)
+            .background(QuotaGlanceTheme.appBackground)
             .navigationTitle(AppLocalization.string("Settings", locale: locale))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -62,6 +76,7 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .tint(QuotaGlanceTheme.brandAccent)
         .alert(AppLocalization.string("Rename account", locale: locale), isPresented: Binding(
             get: { accountPendingRename != nil },
             set: { if !$0 { accountPendingRename = nil } }
@@ -105,7 +120,11 @@ struct SettingsView: View {
                 Text(accountName(account))
                 Text(state?.isConnected == true ? AppLocalization.string("Connected", locale: locale) : AppLocalization.string("Not connected", locale: locale))
                     .font(.caption)
-                    .foregroundStyle(state?.isConnected == true ? .green : .secondary)
+                    .foregroundStyle(
+                        state?.isConnected == true
+                            ? QuotaGlanceTheme.brandAccent
+                            : QuotaGlanceTheme.secondaryText
+                    )
             }
             Spacer()
             if state?.isConnected == false {

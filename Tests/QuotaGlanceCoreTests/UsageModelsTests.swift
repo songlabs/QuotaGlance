@@ -49,6 +49,29 @@ struct UsageModelsTests {
         #expect(snapshot.accountIdentifier == nil)
     }
 
+    @Test("Legacy envelopes default Widget and Watch to the five-hour limit")
+    func legacyEnvelopeDisplayLimit() throws {
+        let legacyJSON = #"{"version":1,"snapshots":[]}"#
+        let envelope = try SnapshotCoding.decode(Data(legacyJSON.utf8))
+
+        #expect(envelope.displayLimit == .fiveHour)
+    }
+
+    @Test("Display-limit selection chooses only the requested window")
+    func displayLimitWindow() {
+        let session = UsageWindow(usedPercentage: 10, resetAt: nil)
+        let weekly = UsageWindow(usedPercentage: 20, resetAt: nil)
+        let snapshot = UsageSnapshot(
+            provider: .claude,
+            session: session,
+            weekly: weekly,
+            updatedAt: .distantPast
+        )
+
+        #expect(QuotaDisplayLimit.fiveHour.window(in: snapshot) == session)
+        #expect(QuotaDisplayLimit.weekly.window(in: snapshot) == weekly)
+    }
+
     @Test("Account assignment and selected snapshot lookup remain independent")
     func accountSnapshots() {
         let firstID = UUID()
@@ -115,6 +138,30 @@ struct UsageModelsTests {
         #expect(restored[0].replacingIdentityLabel(nil).identityLabel == "one@example.com")
     }
 
+    @Test("Claude OAuth token account decodes its stable ID and email identity")
+    func claudeOAuthAccountIdentity() throws {
+        struct TokenMetadata: Decodable {
+            let account: ClaudeOAuthAccount
+            let organization: ClaudeOAuthOrganization
+        }
+
+        let metadata = try JSONDecoder().decode(TokenMetadata.self, from: Data(#"""
+        {
+          "account": {
+            "uuid": "account-123",
+            "email_address": " claude@example.com "
+          },
+          "organization": {
+            "uuid": "organization-456"
+          }
+        }
+        """#.utf8))
+
+        #expect(metadata.account.uuid == "account-123")
+        #expect(metadata.account.identityLabel == "claude@example.com")
+        #expect(metadata.organization.uuid == "organization-456")
+    }
+
     @Test("Shared watch cache round-trips every supported snapshot combination", arguments: [
         [AIProvider.codex],
         [AIProvider.claude],
@@ -133,13 +180,14 @@ struct UsageModelsTests {
                 updatedAt: Date(timeIntervalSince1970: Double(1_000 + index))
             )
         }
-        let envelope = SnapshotEnvelope(snapshots: snapshots)
+        let envelope = SnapshotEnvelope(snapshots: snapshots, displayLimit: .weekly)
         let cache = SharedWatchSnapshotCache(suiteName: suiteName)
 
         #expect(cache.isAvailable)
         #expect(cache.load() == nil)
         #expect(cache.save(envelope))
         #expect(cache.load() == envelope)
+        #expect(cache.load()?.displayLimit == .weekly)
         #expect(cache.load()?.snapshots.first?.accountIdentifier == accountIdentifier)
     }
 }

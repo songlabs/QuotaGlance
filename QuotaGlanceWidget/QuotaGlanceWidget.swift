@@ -29,7 +29,7 @@ struct QuotaGlanceWidget: Widget {
             PhoneWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
                     LinearGradient(
-                        colors: [Color(red: 0.025, green: 0.04, blue: 0.075), Color.black],
+                        colors: [QuotaGlanceTheme.secondarySurface, QuotaGlanceTheme.appBackground],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -56,12 +56,12 @@ private struct PhoneWidgetView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("QuotaGlance")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
                 Image(systemName: "iphone.and.arrow.forward")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
                 Text("Open the iPhone app to refresh usage.")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -73,24 +73,26 @@ private struct PhoneWidgetView: View {
             for: provider,
             accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
         ) ?? envelope.snapshots[0]
+        let displayLimit = WidgetSnapshotReader.displayLimit
+        let window = displayLimit.window(in: snapshot)
         return VStack(alignment: .leading, spacing: 5) {
-            Text(snapshot.provider.displayName.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(accent(snapshot.provider))
-            Text(snapshot.session.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
+            HStack(spacing: 6) {
+                QuotaGlanceBrandIcon(size: 17)
+                Text(snapshot.provider.displayName.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(snapshot.provider.accent)
+            }
+            Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(.white)
-            Label("5h remaining", systemImage: "clock")
+                .foregroundStyle(QuotaGlanceTheme.primaryText)
+            Label(limitLabel(displayLimit), systemImage: "clock")
                 .font(.caption2)
-                .foregroundStyle(.white)
-            Text(weeklyText(snapshot.weekly))
-                .font(.caption.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
             Spacer(minLength: 0)
             Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
                 .font(.caption2)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
@@ -102,24 +104,23 @@ private struct PhoneWidgetView: View {
                     for: provider,
                     accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
                 ) {
+                    let displayLimit = WidgetSnapshotReader.displayLimit
+                    let window = displayLimit.window(in: snapshot)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(provider.displayName.uppercased())
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(accent(provider))
-                        Text(snapshot.session.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
+                            .foregroundStyle(provider.accent)
+                        Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                             .font(.title.bold())
                             .monospacedDigit()
-                            .foregroundStyle(.white)
-                        Text("5h remaining")
+                            .foregroundStyle(QuotaGlanceTheme.primaryText)
+                        Text(limitLabel(displayLimit))
                             .font(.caption2)
-                            .foregroundStyle(.white)
-                        Text(weeklyText(snapshot.weekly))
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
                         Spacer(minLength: 0)
                         Text(UsageFormatting.updatedText(updatedAt: snapshot.updatedAt))
                             .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -127,13 +128,11 @@ private struct PhoneWidgetView: View {
         }
     }
 
-    private func accent(_ provider: AIProvider) -> Color {
-        provider == .codex ? .green : .orange
-    }
-
-    private func weeklyText(_ window: UsageWindow?) -> String {
-        let percentage = window.map { "\($0.roundedRemainingPercentage)%" } ?? "—"
-        return String(localized: "weekly.value", defaultValue: "Weekly \(percentage)")
+    private func limitLabel(_ limit: QuotaDisplayLimit) -> String {
+        switch limit {
+        case .fiveHour: String(localized: "5 hours")
+        case .weekly: String(localized: "Weekly")
+        }
     }
 }
 
@@ -141,6 +140,7 @@ private enum WidgetSnapshotReader {
     static let suiteName = "group.com.songlabs.QuotaGlance"
     static let key = "usageSnapshotEnvelope"
     static let defaultProviderKey = "defaultProvider"
+    static let displayLimitKey = "displayLimit"
     static let selectedAccountKeyPrefix = "selectedAccount."
 
     static func load() -> SnapshotEnvelope? {
@@ -150,6 +150,10 @@ private enum WidgetSnapshotReader {
 
     static var defaultProvider: AIProvider {
         UserDefaults(suiteName: suiteName)?.string(forKey: defaultProviderKey).flatMap(AIProvider.init(rawValue:)) ?? .codex
+    }
+
+    static var displayLimit: QuotaDisplayLimit {
+        UserDefaults(suiteName: suiteName)?.string(forKey: displayLimitKey).flatMap(QuotaDisplayLimit.init(rawValue:)) ?? .fiveHour
     }
 
     static func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {

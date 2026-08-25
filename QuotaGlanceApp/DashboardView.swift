@@ -1,6 +1,5 @@
 import QuotaGlanceCore
 import SwiftUI
-import UIKit
 
 struct DashboardView: View {
     @Bindable var store: DashboardStore
@@ -10,9 +9,9 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.025, green: 0.04, blue: 0.075).ignoresSafeArea()
+                QuotaGlanceTheme.appBackground.ignoresSafeArea()
                 ScrollView {
-                    LazyVStack(spacing: 18) {
+                    LazyVStack(spacing: QuotaGlanceTheme.sectionSpacing) {
                         ForEach(AIProvider.allCases) { provider in
                             ProviderGroup(store: store, provider: provider)
                         }
@@ -24,6 +23,9 @@ struct DashboardView: View {
             }
             .navigationTitle("QuotaGlance")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    QuotaGlanceBrandIcon(size: 24)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalization.string("Settings", locale: locale), systemImage: "gearshape") {
                         store.isShowingSettings = true
@@ -32,7 +34,7 @@ struct DashboardView: View {
                 }
             }
         }
-        .tint(.white)
+        .tint(QuotaGlanceTheme.brandAccent)
         .sheet(isPresented: $store.isShowingSettings) {
             SettingsView(store: store)
         }
@@ -91,7 +93,7 @@ private struct ProviderGroup: View {
                 if let error = store.providerErrors[provider] {
                     Label(error.message(locale: locale), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(QuotaGlanceTheme.attention)
                 }
             }
         }
@@ -99,17 +101,10 @@ private struct ProviderGroup: View {
 
     @ViewBuilder
     private var providerLabel: some View {
-        if provider == .codex, let logo = UIImage(named: "OpenAILogo") {
-            Label {
-                Text(provider.displayName)
-            } icon: {
-                Image(uiImage: logo)
-                    .resizable()
-                    .scaledToFit()
-            }
-        } else {
-            Label(provider.displayName, systemImage: provider == .codex ? "sparkles" : "a.circle.fill")
-        }
+        Label(
+            provider.displayName,
+            systemImage: provider == .codex ? "terminal" : "sparkles"
+        )
     }
 }
 
@@ -167,7 +162,7 @@ private struct EmptyProviderCard: View {
             Text(provider == .codex
                  ? AppLocalization.string("Track your Codex usage and reset time.", locale: locale)
                  : AppLocalization.string("Track your Claude Code usage and reset time.", locale: locale))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
             Button {
                 Task { await connect() }
             } label: {
@@ -187,16 +182,12 @@ private struct EmptyProviderCard: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(QuotaGlanceTheme.attention)
             }
         }
-        .padding(18)
+        .padding(QuotaGlanceTheme.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.055))
-        }
+        .quotaCardSurface()
     }
 }
 
@@ -215,7 +206,7 @@ private struct AccountStatusCard: View {
             Text(isConnected
                  ? AppLocalization.string("Connected, but no usage data has been received yet.", locale: locale)
                  : AppLocalization.string("Session expired. Connect again.", locale: locale))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
             Button {
                 Task { await action() }
             } label: {
@@ -235,11 +226,11 @@ private struct AccountStatusCard: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(QuotaGlanceTheme.attention)
             }
         }
-        .padding(18)
-        .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(QuotaGlanceTheme.cardPadding)
+        .quotaCardSurface()
     }
 }
 
@@ -253,12 +244,14 @@ private struct LoadingCard: View {
             ProgressView().tint(provider.accent)
             VStack(alignment: .leading, spacing: 3) {
                 Text(accountName).font(.headline)
-                Text(AppLocalization.string("Loading usage…", locale: locale)).font(.subheadline).foregroundStyle(.secondary)
+                Text(AppLocalization.string("Loading usage…", locale: locale))
+                    .font(.subheadline)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
             }
             Spacer()
         }
-        .padding(20)
-        .background(.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(QuotaGlanceTheme.cardPadding)
+        .quotaCardSurface()
     }
 }
 

@@ -40,17 +40,17 @@ struct UsageCard: View {
                         .font(.headline)
                     Text(resetText(primaryWindow?.resetAt))
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
                     if primaryWindow == nil {
                         Text(AppLocalization.string("Not reported by provider", locale: locale))
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(QuotaGlanceTheme.tertiaryText)
                     }
                 }
                 Spacer(minLength: 0)
             }
 
-            Divider().overlay(.white.opacity(0.08))
+            Divider().overlay(QuotaGlanceTheme.border)
             WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
 
             HStack(alignment: .firstTextBaseline) {
@@ -60,11 +60,11 @@ struct UsageCard: View {
                     locale: locale,
                     arguments: [localDateTime(snapshot.updatedAt, locale: locale)]
                 ))
-                    .foregroundStyle(isStale ? .secondary : .tertiary)
+                    .foregroundStyle(isStale ? QuotaGlanceTheme.secondaryText : QuotaGlanceTheme.tertiaryText)
                 Spacer()
                 if isStale {
                     Label(AppLocalization.string("Cached", locale: locale), systemImage: "clock.arrow.circlepath")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
                 }
             }
             .font(.caption)
@@ -72,7 +72,7 @@ struct UsageCard: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(QuotaGlanceTheme.attention)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -89,12 +89,8 @@ struct UsageCard: View {
                 .tint(snapshot.provider.accent)
             }
         }
-        .padding(18)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.055))
-        }
+        .padding(QuotaGlanceTheme.cardPadding)
+        .quotaCardSurface()
         .accessibilityElement(children: .contain)
     }
 
@@ -116,7 +112,7 @@ private struct UsageRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(.white.opacity(0.12), lineWidth: 8)
+            Circle().stroke(QuotaGlanceTheme.track, lineWidth: 8)
             Circle()
                 .trim(from: 0, to: (window?.remainingPercentage ?? 0) / 100)
                 .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
@@ -125,6 +121,7 @@ private struct UsageRing: View {
                 .font(.system(size: 25, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .minimumScaleFactor(0.7)
+                .foregroundStyle(QuotaGlanceTheme.primaryText)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(AppLocalization.string("5 hour remaining", locale: locale))
@@ -139,8 +136,7 @@ private struct UsageRing: View {
     }
 
     private var ringColor: Color {
-        guard let window else { return .secondary }
-        return window.level.color(normal: accent)
+        window == nil ? QuotaGlanceTheme.tertiaryText : accent
     }
 }
 
@@ -155,8 +151,10 @@ private struct WeeklyRow: View {
                 Text(AppLocalization.string("Weekly", locale: locale))
                     .font(.subheadline.weight(.medium))
                     .frame(width: 58, alignment: .leading)
-                ProgressView(value: window?.remainingPercentage ?? 0, total: 100)
-                    .tint(window?.level.color(normal: accent) ?? .secondary)
+                QuotaProgressBar(
+                    percentage: window?.remainingPercentage ?? 0,
+                    color: window == nil ? QuotaGlanceTheme.tertiaryText : accent
+                )
                     .accessibilityLabel(AppLocalization.string("Weekly remaining", locale: locale))
                 Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                     .font(.subheadline.bold())
@@ -167,7 +165,7 @@ private struct WeeklyRow: View {
             if let resetAt = window?.resetAt {
                 HStack(alignment: .firstTextBaseline) {
                     Text(AppLocalization.string("Next update", locale: locale))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
                     Spacer()
                     Text(localDateTime(resetAt, locale: locale))
                         .monospacedDigit()
@@ -176,7 +174,7 @@ private struct WeeklyRow: View {
             } else if window != nil {
                 Text(AppLocalization.string("Update time not provided", locale: locale))
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(QuotaGlanceTheme.tertiaryText)
             }
         }
     }
@@ -189,23 +187,4 @@ private func localDateTime(_ date: Date, locale: Locale) -> String {
     formatter.dateStyle = .short
     formatter.timeStyle = .short
     return formatter.string(from: date)
-}
-
-extension AIProvider {
-    var accent: Color {
-        switch self {
-        case .codex: Color(red: 0.35, green: 0.88, blue: 0.39)
-        case .claude: Color(red: 1.0, green: 0.48, blue: 0.16)
-        }
-    }
-}
-
-extension RemainingLevel {
-    func color(normal: Color) -> Color {
-        switch self {
-        case .normal: normal
-        case .attention: .orange
-        case .low: .red
-        }
-    }
 }

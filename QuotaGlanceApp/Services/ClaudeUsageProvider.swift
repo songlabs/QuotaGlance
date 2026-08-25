@@ -68,14 +68,21 @@ final class ClaudeUsageProvider: UsageProvider {
             accessToken: token.accessToken,
             refreshToken: refreshToken,
             expiresAt: Date().addingTimeInterval(TimeInterval(token.expiresIn)),
-            accountID: nil,
+            accountID: token.account?.uuid,
             scopes: token.scope?.split(separator: " ").map(String.init) ?? scopes
         ), accountIdentifier: accountIdentifier)
-        return nil
+        return token.account?.identityLabel
     }
 
     func disconnect(accountIdentifier: UUID) async throws {
         try credentials.delete(provider, accountIdentifier: accountIdentifier)
+    }
+
+    func accountIdentityLabel(accountIdentifier: UUID) async throws -> String? {
+        guard let credential = try credentials.load(provider, accountIdentifier: accountIdentifier) else {
+            return nil
+        }
+        return try await refresh(credential, accountIdentifier: accountIdentifier).identityLabel
     }
 
     func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot {
@@ -83,13 +90,13 @@ final class ClaudeUsageProvider: UsageProvider {
             throw UsageProviderError.noAccount
         }
         if credential.expiresAt <= Date().addingTimeInterval(60) {
-            credential = try await refresh(credential, accountIdentifier: accountIdentifier)
+            credential = try await refresh(credential, accountIdentifier: accountIdentifier).credential
         }
 
         do {
             return try await requestUsage(credential)
         } catch UsageProviderError.rejected(statusCode: 401) {
-            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier)
+            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier).credential
             return try await requestUsage(refreshed)
         }
     }
@@ -106,7 +113,10 @@ final class ClaudeUsageProvider: UsageProvider {
         return try UsageResponseDecoder.decodeClaude(data)
     }
 
-    private func refresh(_ credential: OAuthCredential, accountIdentifier: UUID) async throws -> OAuthCredential {
+    private func refresh(
+        _ credential: OAuthCredential,
+        accountIdentifier: UUID
+    ) async throws -> (credential: OAuthCredential, identityLabel: String?) {
         let token = try await requestToken(ClaudeTokenRequest(
             grantType: "refresh_token",
             code: nil,
@@ -121,10 +131,11 @@ final class ClaudeUsageProvider: UsageProvider {
             accessToken: token.accessToken,
             refreshToken: token.refreshToken,
             expiresAt: Date().addingTimeInterval(TimeInterval(token.expiresIn)),
+            accountID: token.account?.uuid,
             scopes: token.scope?.split(separator: " ").map(String.init)
         )
         try credentials.save(refreshed, accountIdentifier: accountIdentifier)
-        return refreshed
+        return (refreshed, token.account?.identityLabel)
     }
 
     private func requestToken(_ payload: ClaudeTokenRequest, refreshing: Bool) async throws -> ClaudeTokenResponse {
@@ -201,11 +212,15 @@ private struct ClaudeTokenResponse: Decodable {
     let refreshToken: String?
     let expiresIn: Int
     let scope: String?
+    let account: ClaudeOAuthAccount?
+    let organization: ClaudeOAuthOrganization?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
         case expiresIn = "expires_in"
         case scope
+        case account
+        case organization
     }
 }

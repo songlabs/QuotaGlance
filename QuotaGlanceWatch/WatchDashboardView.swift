@@ -7,8 +7,12 @@ struct WatchDashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 7) {
-                Text("QuotaGlance")
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    QuotaGlanceBrandIcon(size: 18)
+                    Text("QuotaGlance")
+                        .font(.headline)
+                        .foregroundStyle(QuotaGlanceTheme.primaryText)
+                }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if store.snapshots.isEmpty {
@@ -20,7 +24,7 @@ struct WatchDashboardView: View {
                 } else {
                     ForEach(AIProvider.allCases) { provider in
                         if let snapshot = store.snapshots[provider] {
-                            WatchProviderCard(snapshot: snapshot)
+                            WatchProviderCard(snapshot: snapshot, displayLimit: store.displayLimit)
                         }
                     }
                 }
@@ -33,17 +37,21 @@ struct WatchDashboardView: View {
                         Text(UsageFormatting.updatedText(updatedAt: updatedAt))
                     }
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 2)
                 }
             }
             .padding(.horizontal, 2)
         }
+        .background(QuotaGlanceTheme.appBackground.ignoresSafeArea())
     }
 }
 private struct WatchProviderCard: View {
     let snapshot: UsageSnapshot
+    let displayLimit: QuotaDisplayLimit
+
+    private var window: UsageWindow? { displayLimit.window(in: snapshot) }
 
     var body: some View {
         VStack(spacing: 5) {
@@ -52,55 +60,44 @@ private struct WatchProviderCard: View {
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(accent)
                 Spacer()
-                Text(snapshot.session.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
+                Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                     .font(.title2.bold())
                     .monospacedDigit()
-                    .foregroundStyle(sessionColor)
+                    .foregroundStyle(limitColor)
             }
 
             HStack(spacing: 6) {
-                Text("5h")
+                Text(limitLabel)
                 Spacer()
-                Text(resetText(snapshot.session?.resetAt))
+                Text(resetText(window?.resetAt))
             }
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(QuotaGlanceTheme.secondaryText)
 
-            HStack(spacing: 6) {
-                Text("Weekly")
-                ProgressView(value: snapshot.weekly?.remainingPercentage ?? 0, total: 100)
-                    .tint(weeklyColor)
-                Text(snapshot.weekly.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
-                    .monospacedDigit()
-                    .frame(width: 30, alignment: .trailing)
-            }
-            .font(.caption2.weight(.medium))
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .quotaCardSurface(cornerRadius: 10)
         .accessibilityElement(children: .combine)
     }
 
     private var accent: Color {
-        snapshot.provider == .codex ? .green : .orange
+        snapshot.provider.accent
     }
 
-    private var sessionColor: Color {
-        color(snapshot.session)
+    private var limitColor: Color {
+        color(window)
     }
 
-    private var weeklyColor: Color {
-        color(snapshot.weekly)
+    private var limitLabel: String {
+        switch displayLimit {
+        case .fiveHour: String(localized: "5 hours")
+        case .weekly: String(localized: "Weekly")
+        }
     }
 
     private func color(_ window: UsageWindow?) -> Color {
-        guard let window else { return .secondary }
-        switch window.level {
-        case .normal: return accent
-        case .attention: return .orange
-        case .low: return .red
-        }
+        window == nil ? QuotaGlanceTheme.tertiaryText : accent
     }
 
     private func resetText(_ date: Date?) -> String {

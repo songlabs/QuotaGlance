@@ -32,6 +32,18 @@ public enum RemainingLevel: String, Codable, Equatable, Sendable {
     case low
 }
 
+public enum QuotaDisplayLimit: String, Codable, CaseIterable, Equatable, Sendable {
+    case fiveHour
+    case weekly
+
+    public func window(in snapshot: UsageSnapshot) -> UsageWindow? {
+        switch self {
+        case .fiveHour: snapshot.session
+        case .weekly: snapshot.weekly
+        }
+    }
+}
+
 public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let provider: AIProvider
     public let accountIdentifier: UUID?
@@ -120,10 +132,16 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
 
     public let version: Int
     public let snapshots: [UsageSnapshot]
+    public let displayLimit: QuotaDisplayLimit
 
-    public init(version: Int = Self.currentVersion, snapshots: [UsageSnapshot]) {
+    public init(
+        version: Int = Self.currentVersion,
+        snapshots: [UsageSnapshot],
+        displayLimit: QuotaDisplayLimit = .fiveHour
+    ) {
         self.version = version
         self.snapshots = snapshots
+        self.displayLimit = displayLimit
     }
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {
@@ -138,6 +156,19 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
             return exact
         }
         return snapshot(for: provider)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case snapshots
+        case displayLimit
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        snapshots = try container.decode([UsageSnapshot].self, forKey: .snapshots)
+        displayLimit = try container.decodeIfPresent(QuotaDisplayLimit.self, forKey: .displayLimit) ?? .fiveHour
     }
 }
 
