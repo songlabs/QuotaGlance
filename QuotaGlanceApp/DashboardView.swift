@@ -5,6 +5,7 @@ import UIKit
 struct DashboardView: View {
     @Bindable var store: DashboardStore
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.locale) private var locale
 
     var body: some View {
         NavigationStack {
@@ -24,10 +25,10 @@ struct DashboardView: View {
             .navigationTitle("QuotaGlance")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Settings", systemImage: "gearshape") {
+                    Button(AppLocalization.string("Settings", locale: locale), systemImage: "gearshape") {
                         store.isShowingSettings = true
                     }
-                    .accessibilityLabel("Settings")
+                    .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
                 }
             }
         }
@@ -35,7 +36,10 @@ struct DashboardView: View {
         .sheet(isPresented: $store.isShowingSettings) {
             SettingsView(store: store)
         }
-        .task { await store.refreshAll(force: false) }
+        .task {
+            await store.backfillAccountIdentityLabels()
+            await store.refreshAll(force: false)
+        }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
             Task { await store.refreshAll(force: false) }
@@ -60,7 +64,7 @@ private struct ProviderGroup: View {
                 Button {
                     Task { await store.addAccount(provider) }
                 } label: {
-                    Label("Add account", systemImage: "plus")
+                    Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                 }
                 .font(.subheadline.weight(.medium))
                 .disabled(store.connectingProviders.contains(provider))
@@ -142,10 +146,11 @@ private struct AccountSection: View {
     }
 
     private var accountName: String {
-        state.account.displayName(fallback: String(
-            localized: "account.number",
-            defaultValue: "Account \(state.account.ordinal)",
-            locale: locale
+        state.account.displayName(fallback: AppLocalization.string(
+            "account.number",
+            defaultValue: "Account %lld",
+            locale: locale,
+            arguments: [state.account.ordinal]
         ))
     }
 }
@@ -160,8 +165,8 @@ private struct EmptyProviderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(provider == .codex
-                 ? String(localized: "Track your Codex usage and reset time.", locale: locale)
-                 : String(localized: "Track your Claude Code usage and reset time.", locale: locale))
+                 ? AppLocalization.string("Track your Codex usage and reset time.", locale: locale)
+                 : AppLocalization.string("Track your Claude Code usage and reset time.", locale: locale))
                 .foregroundStyle(.secondary)
             Button {
                 Task { await connect() }
@@ -169,8 +174,8 @@ private struct EmptyProviderCard: View {
                 HStack {
                     if isConnecting { ProgressView().tint(.black) }
                     Text(isConnecting
-                         ? String(localized: "Connecting…", locale: locale)
-                         : String(localized: "Add account", locale: locale))
+                         ? AppLocalization.string("Connecting…", locale: locale)
+                         : AppLocalization.string("Add account", locale: locale))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -208,8 +213,8 @@ private struct AccountStatusCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(accountName).font(.headline)
             Text(isConnected
-                 ? String(localized: "Connected, but no usage data has been received yet.", locale: locale)
-                 : String(localized: "Session expired. Connect again.", locale: locale))
+                 ? AppLocalization.string("Connected, but no usage data has been received yet.", locale: locale)
+                 : AppLocalization.string("Session expired. Connect again.", locale: locale))
                 .foregroundStyle(.secondary)
             Button {
                 Task { await action() }
@@ -217,8 +222,8 @@ private struct AccountStatusCard: View {
                 HStack {
                     if isWorking { ProgressView().tint(.black) }
                     Text(isConnected
-                         ? String(localized: "Retry refresh", locale: locale)
-                         : String(localized: "Reconnect", locale: locale))
+                         ? AppLocalization.string("Retry refresh", locale: locale)
+                         : AppLocalization.string("Reconnect", locale: locale))
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -239,6 +244,7 @@ private struct AccountStatusCard: View {
 }
 
 private struct LoadingCard: View {
+    @Environment(\.locale) private var locale
     let provider: AIProvider
     let accountName: String
 
@@ -247,7 +253,7 @@ private struct LoadingCard: View {
             ProgressView().tint(provider.accent)
             VStack(alignment: .leading, spacing: 3) {
                 Text(accountName).font(.headline)
-                Text("Loading usage…").font(.subheadline).foregroundStyle(.secondary)
+                Text(AppLocalization.string("Loading usage…", locale: locale)).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
         }
