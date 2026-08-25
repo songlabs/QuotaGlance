@@ -154,3 +154,30 @@ public enum SnapshotCoding {
         return envelope
     }
 }
+
+/// Shared persistence contract for the watch app and its complication.
+public struct SharedWatchSnapshotCache {
+    public static let suiteName = "group.com.songlabs.QuotaGlance.watch"
+    public static let key = "usageSnapshotEnvelope"
+
+    private let defaults: UserDefaults?
+
+    public init(suiteName: String = Self.suiteName) {
+        defaults = UserDefaults(suiteName: suiteName)
+    }
+
+    public var isAvailable: Bool { defaults != nil }
+
+    @discardableResult
+    public func save(_ envelope: SnapshotEnvelope) -> Bool {
+        guard let defaults, let data = try? SnapshotCoding.encode(envelope) else { return false }
+        defaults.set(data, forKey: Self.key)
+        guard let storedData = defaults.data(forKey: Self.key) else { return false }
+        return (try? SnapshotCoding.decode(storedData)) == envelope
+    }
+
+    public func load() -> SnapshotEnvelope? {
+        guard let data = defaults?.data(forKey: Self.key) else { return nil }
+        return try? SnapshotCoding.decode(data)
+    }
+}

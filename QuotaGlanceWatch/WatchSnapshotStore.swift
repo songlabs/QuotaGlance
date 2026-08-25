@@ -3,18 +3,13 @@ import QuotaGlanceCore
 
 @MainActor
 final class WatchSnapshotStore {
-    static let suiteName = "group.com.songlabs.QuotaGlance.watch"
-    static let key = "usageSnapshotEnvelope"
-
-    private let defaults = UserDefaults(suiteName: suiteName)
+    private let cache = SharedWatchSnapshotCache()
 
     func load() -> SnapshotEnvelope? {
-        guard let data = defaults?.data(forKey: Self.key) else { return nil }
-        return try? SnapshotCoding.decode(data)
+        cache.load()
     }
 
-    func save(_ envelope: SnapshotEnvelope) {
-        guard let data = try? SnapshotCoding.encode(envelope) else { return }
-        defaults?.set(data, forKey: Self.key)
+    func save(_ envelope: SnapshotEnvelope) -> Bool {
+        cache.save(envelope)
     }
 }

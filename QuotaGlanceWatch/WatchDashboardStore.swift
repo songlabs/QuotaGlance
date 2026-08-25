@@ -5,6 +5,7 @@ import WidgetKit
 @Observable
 @MainActor
 final class WatchDashboardStore {
+    private static let complicationKind = "QuotaGlanceComplication"
     private let cache: WatchSnapshotStore
     private var receiver: WatchConnectivityReceiver!
     var snapshots: [AIProvider: UsageSnapshot]
@@ -13,6 +14,9 @@ final class WatchDashboardStore {
         self.cache = cache
         let cached = cache.load()?.snapshots ?? []
         snapshots = Dictionary(uniqueKeysWithValues: cached.map { ($0.provider, $0) })
+        if !cached.isEmpty {
+            WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
+        }
         receiver = WatchConnectivityReceiver()
         receiver.start { [weak self] envelope in
             self?.apply(envelope)
@@ -20,9 +24,11 @@ final class WatchDashboardStore {
     }
 
     func apply(_ envelope: SnapshotEnvelope) {
-        cache.save(envelope)
+        let saved = cache.save(envelope)
         snapshots = Dictionary(uniqueKeysWithValues: envelope.snapshots.map { ($0.provider, $0) })
-        WidgetCenter.shared.reloadAllTimelines()
+        if saved {
+            WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
+        }
     }
 
     var latestUpdatedAt: Date? {
