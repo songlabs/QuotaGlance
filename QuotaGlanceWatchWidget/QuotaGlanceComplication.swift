@@ -13,13 +13,16 @@ struct ComplicationProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ComplicationEntry) -> Void) {
-        completion(ComplicationEntry(date: Date(), envelope: WatchWidgetCache.load() ?? ComplicationPreview.envelope))
+        let envelope = SharedWatchSnapshotCache().load() ?? (context.isPreview ? ComplicationPreview.envelope : nil)
+        completion(ComplicationEntry(date: Date(), envelope: envelope))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ComplicationEntry>) -> Void) {
+        let envelope = SharedWatchSnapshotCache().load()
+        let refreshInterval: TimeInterval = envelope == nil ? 60 : 15 * 60
         completion(Timeline(
-            entries: [ComplicationEntry(date: Date(), envelope: WatchWidgetCache.load())],
-            policy: .after(Date().addingTimeInterval(15 * 60))
+            entries: [ComplicationEntry(date: Date(), envelope: envelope)],
+            policy: .after(Date().addingTimeInterval(refreshInterval))
         ))
     }
 }
@@ -112,15 +115,6 @@ private struct ComplicationView: View {
             String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
         } ?? String(localized: "not available")
         return String(localized: "remaining.updated", defaultValue: "\(remaining), updated \(updatedTime)")
-    }
-}
-
-private enum WatchWidgetCache {
-    static func load() -> SnapshotEnvelope? {
-        guard let data = UserDefaults(suiteName: "group.com.songlabs.QuotaGlance.watch")?
-            .data(forKey: "usageSnapshotEnvelope")
-        else { return nil }
-        return try? SnapshotCoding.decode(data)
     }
 }
 

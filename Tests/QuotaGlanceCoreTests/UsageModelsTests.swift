@@ -114,4 +114,32 @@ struct UsageModelsTests {
         #expect(restored.map { $0.displayName(fallback: "fallback") } == ["one@example.com", "Two Person"])
         #expect(restored[0].replacingIdentityLabel(nil).identityLabel == "one@example.com")
     }
+
+    @Test("Shared watch cache round-trips every supported snapshot combination", arguments: [
+        [AIProvider.codex],
+        [AIProvider.claude],
+        [AIProvider.codex, AIProvider.claude],
+    ])
+    func sharedWatchCacheRoundTrip(providers: [AIProvider]) throws {
+        let suiteName = "QuotaGlanceCoreTests.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let accountIdentifier = UUID()
+        let snapshots = providers.enumerated().map { index, provider in
+            UsageSnapshot(
+                provider: provider,
+                accountIdentifier: index == 0 ? accountIdentifier : nil,
+                session: UsageWindow(usedPercentage: Double(20 + index), resetAt: nil),
+                weekly: UsageWindow(usedPercentage: Double(40 + index), resetAt: nil),
+                updatedAt: Date(timeIntervalSince1970: Double(1_000 + index))
+            )
+        }
+        let envelope = SnapshotEnvelope(snapshots: snapshots)
+        let cache = SharedWatchSnapshotCache(suiteName: suiteName)
+
+        #expect(cache.isAvailable)
+        #expect(cache.load() == nil)
+        #expect(cache.save(envelope))
+        #expect(cache.load() == envelope)
+        #expect(cache.load()?.snapshots.first?.accountIdentifier == accountIdentifier)
+    }
 }
