@@ -101,7 +101,7 @@ struct UpgradeView: View {
     private var statusDetail: String {
         switch store.accessLevel {
         case .free:
-            AppLocalization.string(store.purchaseManager.canStartTrial ? "Start the trial when you are ready" : "After the trial you will return to Free", locale: locale)
+            return AppLocalization.string(store.purchaseManager.canStartTrial ? "Start the trial when you are ready" : "After the trial you will return to Free", locale: locale)
         case .trial:
             guard let end = store.purchaseManager.trialEndsAt else { return "" }
             return AppLocalization.string("Trial Ends", locale: locale) + ": " + end.formatted(date: .abbreviated, time: .shortened)
