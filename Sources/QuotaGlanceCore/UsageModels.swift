@@ -44,6 +44,19 @@ public enum QuotaDisplayLimit: String, Codable, CaseIterable, Equatable, Sendabl
     }
 }
 
+public enum AccessLevel: String, Codable, Equatable, Sendable {
+    case trial
+    case free
+    case pro
+
+    public var hasProFeatures: Bool { self != .free }
+
+    public static func resolve(isPurchased: Bool, trialEndsAt: Date, now: Date) -> Self {
+        if isPurchased { return .pro }
+        return now < trialEndsAt ? .trial : .free
+    }
+}
+
 public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, Sendable {
     case minute
     case hour
@@ -284,19 +297,22 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     public let displayLimit: QuotaDisplayLimit
     public let accounts: [AccountDisplayMetadata]
     public let watchAccountIdentifiers: [UUID]
+    public let accessLevel: AccessLevel
 
     public init(
         version: Int = Self.currentVersion,
         snapshots: [UsageSnapshot],
         displayLimit: QuotaDisplayLimit = .fiveHour,
         accounts: [AccountDisplayMetadata] = [],
-        watchAccountIdentifiers: [UUID] = []
+        watchAccountIdentifiers: [UUID] = [],
+        accessLevel: AccessLevel = .trial
     ) {
         self.version = version
         self.snapshots = snapshots
         self.displayLimit = displayLimit
         self.accounts = accounts
         self.watchAccountIdentifiers = WatchAccountSelection.normalized(watchAccountIdentifiers)
+        self.accessLevel = accessLevel
     }
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {
@@ -359,6 +375,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         case displayLimit
         case accounts
         case watchAccountIdentifiers
+        case accessLevel
     }
 
     public init(from decoder: Decoder) throws {
@@ -367,6 +384,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         snapshots = try container.decode([UsageSnapshot].self, forKey: .snapshots)
         displayLimit = try container.decodeIfPresent(QuotaDisplayLimit.self, forKey: .displayLimit) ?? .fiveHour
         accounts = try container.decodeIfPresent([AccountDisplayMetadata].self, forKey: .accounts) ?? []
+        accessLevel = try container.decodeIfPresent(AccessLevel.self, forKey: .accessLevel) ?? .trial
         if let identifiers = try container.decodeIfPresent([UUID].self, forKey: .watchAccountIdentifiers) {
             watchAccountIdentifiers = WatchAccountSelection.normalized(identifiers)
         } else {

@@ -62,6 +62,8 @@ private struct ComplicationView: View {
         entry.envelope?.watchAccountPresentations ?? []
     }
 
+    private var hasProFeatures: Bool { entry.envelope?.accessLevel.hasProFeatures ?? true }
+
     private var circular: some View {
         let account = selectedAccounts.first
         let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
@@ -112,7 +114,9 @@ private struct ComplicationView: View {
                 }
             }
             quotaRow(label: "5H", window: account.snapshot?.session)
-            quotaRow(label: "W", window: account.snapshot?.weekly)
+            if hasProFeatures {
+                quotaRow(label: "W", window: account.snapshot?.weekly)
+            }
         }
         .font(.caption2)
     }
