@@ -7,28 +7,32 @@ import StoreKit
 @Observable
 @MainActor
 final class PurchaseManager {
-    static let productID = "com.songlabs.QuotaGlance.pro.lifetime"
+    static let trialProductID = "com.songlabs.QuotaGlance.pro.trial7d"
+    static let lifetimeProductID = "com.songlabs.QuotaGlance.pro.lifetime"
     static let trialDuration: TimeInterval = 7 * 24 * 60 * 60
 
-    private(set) var accessLevel: AccessLevel = .trial
-    private(set) var product: Product?
-    private(set) var trialEndsAt: Date
+    private(set) var accessLevel: AccessLevel = .free
+    private(set) var trialProduct: Product?
+    private(set) var lifetimeProduct: Product?
+    private(set) var trialEndsAt: Date?
+    private(set) var hasTrialTransaction = false
     private(set) var purchaseError: Error?
     private let trialStore: TrialKeychainStore
     private var updatesTask: Task<Void, Never>?
 
-    init(trialStore: TrialKeychainStore = TrialKeychainStore(), now: Date = Date()) {
+    init(trialStore: TrialKeychainStore = TrialKeychainStore()) {
         self.trialStore = trialStore
-        let record = trialStore.loadOrCreate(now: now)
-        trialEndsAt = record.startedAt.addingTimeInterval(Self.trialDuration)
-        accessLevel = .resolve(isPurchased: false, trialEndsAt: trialEndsAt, now: record.effectiveNow)
         updatesTask = observeTransactions()
     }
 
     deinit { updatesTask?.cancel() }
 
     var hasProFeatures: Bool { accessLevel.hasProFeatures }
-    var trialTimeRemaining: TimeInterval { max(0, trialEndsAt.timeIntervalSinceNow) }
+    var canStartTrial: Bool { !hasTrialTransaction && accessLevel != .pro }
+    var trialTimeRemaining: TimeInterval {
+        guard let trialEndsAt else { return 0 }
+        return max(0, trialEndsAt.timeIntervalSince(trialStore.effectiveNow(now: Date())))
+    }
 
     func start() async {
         await loadProduct()
@@ -36,27 +40,51 @@ final class PurchaseManager {
     }
 
     func refreshEntitlements(now: Date = Date()) async {
-        var purchased = false
+        var hasLifetimePurchase = false
+        var trialPurchaseDate: Date?
         for await result in Transaction.currentEntitlements {
             guard case let .verified(transaction) = result,
-                  transaction.productID == Self.productID,
                   transaction.revocationDate == nil else { continue }
-            purchased = true
+            switch transaction.productID {
+            case Self.lifetimeProductID:
+                hasLifetimePurchase = true
+            case Self.trialProductID:
+                if trialPurchaseDate.map({ transaction.purchaseDate < $0 }) ?? true {
+                    trialPurchaseDate = transaction.purchaseDate
+                }
+            default:
+                continue
+            }
         }
-        let record = trialStore.loadOrCreate(now: now)
-        trialEndsAt = record.startedAt.addingTimeInterval(Self.trialDuration)
-        accessLevel = .resolve(isPurchased: purchased, trialEndsAt: trialEndsAt, now: record.effectiveNow)
+        hasTrialTransaction = trialPurchaseDate != nil
+        trialEndsAt = trialPurchaseDate?.addingTimeInterval(Self.trialDuration)
+        let effectiveNow = trialPurchaseDate == nil ? now : trialStore.record(now: now)
+        accessLevel = .resolve(
+            hasLifetimePurchase: hasLifetimePurchase,
+            trialPurchaseDate: trialPurchaseDate,
+            trialDuration: Self.trialDuration,
+            now: effectiveNow
+        )
     }
 
-    func purchase() async -> Bool {
+    func purchaseTrial() async -> Bool {
+        await purchase(product: trialProduct, expectedProductID: Self.trialProductID, expectedAccess: .trial)
+    }
+
+    func purchaseLifetime() async -> Bool {
+        await purchase(product: lifetimeProduct, expectedProductID: Self.lifetimeProductID, expectedAccess: .pro)
+    }
+
+    private func purchase(product: Product?, expectedProductID: String, expectedAccess: AccessLevel) async -> Bool {
         purchaseError = nil
         guard let product else { return false }
         do {
             switch try await product.purchase() {
             case let .success(.verified(transaction)):
+                guard transaction.productID == expectedProductID else { return false }
                 await transaction.finish()
                 await refreshEntitlements()
-                return accessLevel == .pro
+                return accessLevel == expectedAccess || accessLevel == .pro
             case .success(.unverified):
                 return false
             case .pending, .userCancelled:
@@ -82,7 +110,9 @@ final class PurchaseManager {
 
     private func loadProduct() async {
         do {
-            product = try await Product.products(for: [Self.productID]).first
+            let products = try await Product.products(for: [Self.trialProductID, Self.lifetimeProductID])
+            trialProduct = products.first { $0.id == Self.trialProductID }
+            lifetimeProduct = products.first { $0.id == Self.lifetimeProductID }
         } catch {
             purchaseError = error
         }
@@ -92,7 +122,8 @@ final class PurchaseManager {
         Task { [weak self] in
             for await result in Transaction.updates {
                 guard !Task.isCancelled else { return }
-                if case let .verified(transaction) = result, transaction.productID == Self.productID {
+                if case let .verified(transaction) = result,
+                   [Self.trialProductID, Self.lifetimeProductID].contains(transaction.productID) {
                     await transaction.finish()
                     await self?.refreshEntitlements()
                 }
@@ -102,10 +133,7 @@ final class PurchaseManager {
 }
 
 struct TrialRecord: Codable, Equatable {
-    let startedAt: Date
     let lastSeenAt: Date
-
-    var effectiveNow: Date { max(startedAt, lastSeenAt) }
 }
 
 @MainActor
@@ -113,13 +141,15 @@ final class TrialKeychainStore {
     private let service = "com.songlabs.QuotaGlance.access"
     private let account = "proTrial.v1"
 
-    func loadOrCreate(now: Date) -> TrialRecord {
+    func record(now: Date) -> Date {
         let existing = load()
-        let startedAt = existing?.startedAt ?? now
         let effectiveNow = max(now, existing?.lastSeenAt ?? now)
-        let record = TrialRecord(startedAt: startedAt, lastSeenAt: effectiveNow)
-        save(record)
-        return record
+        save(TrialRecord(lastSeenAt: effectiveNow))
+        return effectiveNow
+    }
+
+    func effectiveNow(now: Date) -> Date {
+        max(now, load()?.lastSeenAt ?? now)
     }
 
     private func load() -> TrialRecord? {

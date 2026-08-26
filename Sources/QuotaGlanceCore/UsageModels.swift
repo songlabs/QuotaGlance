@@ -51,9 +51,15 @@ public enum AccessLevel: String, Codable, Equatable, Sendable {
 
     public var hasProFeatures: Bool { self != .free }
 
-    public static func resolve(isPurchased: Bool, trialEndsAt: Date, now: Date) -> Self {
-        if isPurchased { return .pro }
-        return now < trialEndsAt ? .trial : .free
+    public static func resolve(
+        hasLifetimePurchase: Bool,
+        trialPurchaseDate: Date?,
+        trialDuration: TimeInterval,
+        now: Date
+    ) -> Self {
+        if hasLifetimePurchase { return .pro }
+        guard let trialPurchaseDate else { return .free }
+        return now < trialPurchaseDate.addingTimeInterval(trialDuration) ? .trial : .free
     }
 }
 

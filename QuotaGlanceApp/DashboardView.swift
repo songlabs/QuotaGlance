@@ -42,10 +42,13 @@ struct DashboardView: View {
             UpgradeView(store: store)
         }
         .task {
+            let previousAccessLevel = store.accessLevel
             await store.purchaseManager.start()
-            await store.refreshAccess()
+            await store.refreshAccess(previousAccessLevel: previousAccessLevel)
             await store.backfillAccountIdentityLabels()
             await store.refreshAll(force: false)
+        }
+        .task(id: store.accessLevel) {
             if store.accessLevel == .trial {
                 let remaining = store.purchaseManager.trialTimeRemaining
                 if remaining > 0 {

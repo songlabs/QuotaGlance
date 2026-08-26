@@ -226,8 +226,8 @@ final class DashboardStore {
 
     func requirePro() { isShowingUpgrade = true }
 
-    func refreshAccess() async {
-        let previous = accessLevel
+    func refreshAccess(previousAccessLevel: AccessLevel? = nil) async {
+        let previous = previousAccessLevel ?? accessLevel
         await purchaseManager.refreshEntitlements()
         if previous != accessLevel { publishSnapshots() }
     }
