@@ -2,6 +2,14 @@ import Foundation
 import QuotaGlanceCore
 import WatchConnectivity
 
+private struct SendableReplyHandler: @unchecked Sendable {
+    let handler: ([String: Any]) -> Void
+
+    func callAsFunction(_ reply: [String: Any]) {
+        handler(reply)
+    }
+}
+
 @MainActor
 protocol PhoneWatchSynchronizing: AnyObject {
     func send(_ envelope: SnapshotEnvelope)
@@ -56,9 +64,10 @@ final class PhoneWatchSync: NSObject, PhoneWatchSynchronizing, WCSessionDelegate
             replyHandler([WatchSyncMessageKey.refreshSucceeded: false])
             return
         }
+        let sendReply = SendableReplyHandler(handler: replyHandler)
         Task { @MainActor [weak self] in
             guard let self, let refreshHandler = self.refreshHandler else {
-                replyHandler([WatchSyncMessageKey.refreshSucceeded: false])
+                sendReply([WatchSyncMessageKey.refreshSucceeded: false])
                 return
             }
             let succeeded = await refreshHandler()
@@ -66,7 +75,7 @@ final class PhoneWatchSync: NSObject, PhoneWatchSynchronizing, WCSessionDelegate
             if let latestData = self.latestData {
                 reply[WatchSyncMessageKey.snapshotEnvelope] = latestData
             }
-            replyHandler(reply)
+            sendReply(reply)
         }
     }
 
