@@ -65,6 +65,7 @@ struct WatchDashboardView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(QuotaGlanceTheme.brandAccent)
                 .disabled(store.isRefreshing)
+                .frame(maxWidth: .infinity, alignment: .center)
 
                 if store.refreshFailed {
                     Label(

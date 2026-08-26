@@ -6,12 +6,14 @@ QuotaGlance is a local-first iPhone and Apple Watch utility for viewing the rema
 - a watchOS 11+ SwiftUI companion app;
 - an iPhone WidgetKit extension;
 - a watchOS WidgetKit complication with circular, rectangular, and inline families;
+- independent multi-account selection for the iPhone, Watch, and widgets;
+- English, Japanese, Korean, Simplified Chinese, and Traditional Chinese localization;
 - a shared `QuotaGlanceCore` Swift package;
 - Swift Testing and XCTest coverage for quota mapping and provider schemas.
 
 ## Current verification boundary
 
-The shared core builds and its tests pass on Swift 6.3 for Windows. The Apple-platform targets were created and syntax-checked, but this repository was initialized on Windows, where Xcode, iOS Simulator, watchOS Simulator, Widget previews, signing, and real OAuth browser flows are unavailable. Do not treat the Apple targets or provider login as runtime-verified until the macOS checklist below has passed.
+The shared core can be built and tested cross-platform. GitHub Actions performs the authoritative iOS unit-test and unsigned Release simulator build on macOS; the manually triggered TestFlight workflow archives, verifies, signs, and uploads the iPhone app together with its iPhone widget, Watch app, and watch complication. Real OAuth browser flows and paired-device WatchConnectivity still require the manual checks below.
 
 The Provider APIs are also a compatibility risk: both usage paths are used by the vendors' own clients but are not documented as stable third-party iOS APIs. See [Provider compatibility](Docs/ProviderCompatibility.md) before distributing the app.
 
