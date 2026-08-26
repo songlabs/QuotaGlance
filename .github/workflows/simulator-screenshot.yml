@@ -1,0 +1,119 @@
+name: Simulator Screenshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: simulator-screenshot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APP_BUNDLE_ID: com.songlabs.QuotaGlance
+      DERIVED_DATA: ${{ runner.temp }}/DerivedData
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select and verify Xcode 26.3
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+          xcrun simctl list devices available
+
+      - name: Select and boot iPhone Simulator
+        run: |
+          set -euo pipefail
+          simulator=$(xcrun simctl list devices available -j | ruby -rjson -e '
+            runtimes = JSON.parse(STDIN.read).fetch("devices").filter_map do |runtime, devices|
+              version = runtime[/iOS[- ](\d+(?:[-.]\d+)*)/, 1]
+              next unless version
+              [version.split(/[-.]/).map(&:to_i), version.tr("-", "."), devices]
+            end
+            runtime = runtimes.select { |version, _, _| version.first >= 26 }.max_by(&:first)
+            abort "No available iOS 26 or newer simulator runtime" unless runtime
+            phone = runtime.last.find { |device| device["name"].start_with?("iPhone") }
+            abort "No available iPhone in the selected simulator runtime" unless phone
+            puts [phone.fetch("udid"), phone.fetch("name"), runtime[1]].join("|")
+          ')
+          IFS='|' read -r SIMULATOR_ID SIMULATOR_NAME SIMULATOR_OS <<< "$simulator"
+          echo "Selected $SIMULATOR_NAME (iOS $SIMULATOR_OS), $SIMULATOR_ID"
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
+          echo "SIMULATOR_NAME=$SIMULATOR_NAME" >> "$GITHUB_ENV"
+          echo "SIMULATOR_OS=$SIMULATOR_OS" >> "$GITHUB_ENV"
+          xcrun simctl boot "$SIMULATOR_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
+
+      - name: Build Debug app for Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project QuotaGlance.xcodeproj \
+            -scheme QuotaGlance \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/simulator-build.log"
+
+      - name: Install, launch, and capture Dashboard
+        run: |
+          set -euo pipefail
+          candidates_file="$RUNNER_TEMP/main-app-candidates.txt"
+          find "$DERIVED_DATA/Build/Products" \
+            -type d -path '*Debug-iphonesimulator/QuotaGlance.app' -print > "$candidates_file"
+          candidate_count=$(wc -l < "$candidates_file" | tr -d ' ')
+          if [[ "$candidate_count" != 1 ]]; then
+            echo "Expected one main iOS app, found $candidate_count:" >&2
+            cat "$candidates_file" >&2
+            exit 1
+          fi
+          APP_PATH=$(cat "$candidates_file")
+          built_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")
+          test "$built_bundle_id" = "$APP_BUNDLE_ID"
+          echo "Main app: $APP_PATH ($built_bundle_id)"
+
+          xcrun simctl install "$SIMULATOR_ID" "$APP_PATH"
+          xcrun simctl launch --terminate-running-process \
+            "$SIMULATOR_ID" "$APP_BUNDLE_ID" --screenshot-mode
+          sleep 3
+
+          mkdir -p screenshots
+          xcrun simctl io "$SIMULATOR_ID" screenshot screenshots/quota-glance-home.png
+          test -f screenshots/quota-glance-home.png
+          file screenshots/quota-glance-home.png | tee "$RUNNER_TEMP/screenshot-file.log"
+          ls -lh screenshots
+
+      - name: Collect Simulator diagnostics
+        if: failure() && env.SIMULATOR_ID != ''
+        run: |
+          xcrun simctl list > "$RUNNER_TEMP/simctl-list.log"
+          xcrun simctl spawn "$SIMULATOR_ID" log show \
+            --last 10m --style compact --predicate \
+            'process == "QuotaGlance"' > "$RUNNER_TEMP/quota-glance-simulator.log" || true
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: quota-glance-simulator-screenshots
+          path: screenshots/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulator-screenshot-diagnostics
+          path: ${{ runner.temp }}/*.log
+          retention-days: 7
+          if-no-files-found: ignore
