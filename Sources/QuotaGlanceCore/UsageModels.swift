@@ -44,6 +44,86 @@ public enum QuotaDisplayLimit: String, Codable, CaseIterable, Equatable, Sendabl
     }
 }
 
+public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case minute
+    case hour
+
+    public var id: String { rawValue }
+
+    public var valueRange: ClosedRange<Int> {
+        switch self {
+        case .minute: 0...59
+        case .hour: 0...23
+        }
+    }
+
+    fileprivate var secondsPerUnit: TimeInterval {
+        switch self {
+        case .minute: 60
+        case .hour: 60 * 60
+        }
+    }
+
+    fileprivate func clamped(_ value: Int) -> Int {
+        min(max(value, valueRange.lowerBound), valueRange.upperBound)
+    }
+}
+
+public struct RefreshInterval: Equatable, Sendable {
+    public static let defaultInterval = RefreshInterval(value: 30, unit: .minute)
+
+    public let value: Int
+    public let unit: RefreshIntervalUnit
+
+    public init(value: Int, unit: RefreshIntervalUnit) {
+        self.value = unit.clamped(value)
+        self.unit = unit
+    }
+
+    public var timeInterval: TimeInterval? {
+        value == 0 ? nil : TimeInterval(value) * unit.secondsPerUnit
+    }
+
+    public func replacingValue(_ value: Int) -> RefreshInterval {
+        RefreshInterval(value: value, unit: unit)
+    }
+
+    public func replacingUnit(_ unit: RefreshIntervalUnit) -> RefreshInterval {
+        RefreshInterval(value: value, unit: unit)
+    }
+
+    public func shouldRefresh(
+        lastSuccessfulUpdate: Date?,
+        force: Bool = false,
+        now: Date = Date()
+    ) -> Bool {
+        if force { return true }
+        guard let timeInterval else { return false }
+        guard let lastSuccessfulUpdate else { return true }
+        return now.timeIntervalSince(lastSuccessfulUpdate) >= timeInterval
+    }
+}
+
+public enum RefreshIntervalPreferences {
+    public static let valueKey = "refreshInterval.value"
+    public static let unitKey = "refreshInterval.unit"
+
+    public static func load(from defaults: UserDefaults) -> RefreshInterval {
+        let fallback = RefreshInterval.defaultInterval
+        guard let unitValue = defaults.string(forKey: unitKey),
+              let unit = RefreshIntervalUnit(rawValue: unitValue),
+              defaults.object(forKey: valueKey) != nil
+        else { return fallback }
+        let value = defaults.integer(forKey: valueKey)
+        return RefreshInterval(value: value, unit: unit)
+    }
+
+    public static func save(_ interval: RefreshInterval, to defaults: UserDefaults) {
+        defaults.set(interval.value, forKey: valueKey)
+        defaults.set(interval.unit.rawValue, forKey: unitKey)
+    }
+}
+
 public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let provider: AIProvider
     public let accountIdentifier: UUID?

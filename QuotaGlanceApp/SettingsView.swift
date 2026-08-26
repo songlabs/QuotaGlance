@@ -21,6 +21,36 @@ struct SettingsView: View {
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
+                Section {
+                    HStack(spacing: 16) {
+                        Picker(AppLocalization.string("Time", locale: locale), selection: Binding(
+                            get: { store.refreshInterval.value },
+                            set: { store.refreshInterval = store.refreshInterval.replacingValue($0) }
+                        )) {
+                            ForEach(store.refreshInterval.unit.valueRange, id: \.self) { value in
+                                Text(verbatim: "\(value)").tag(value)
+                            }
+                        }
+                        .pickerStyle(.menu)
+
+                        Picker(AppLocalization.string("Unit", locale: locale), selection: Binding(
+                            get: { store.refreshInterval.unit },
+                            set: { store.refreshInterval = store.refreshInterval.replacingUnit($0) }
+                        )) {
+                            Text(AppLocalization.string("Minutes", locale: locale))
+                                .tag(RefreshIntervalUnit.minute)
+                            Text(AppLocalization.string("Hours", locale: locale))
+                                .tag(RefreshIntervalUnit.hour)
+                        }
+                        .pickerStyle(.menu)
+                    }
+                } header: {
+                    Text(AppLocalization.string("Automatic refresh interval", locale: locale))
+                } footer: {
+                    Text(AppLocalization.string("0 = Automatic refresh off", locale: locale))
+                }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
+
                 ForEach(AIProvider.allCases) { provider in
                     Section(provider.displayName) {
                         ForEach(store.accounts(for: provider)) { account in

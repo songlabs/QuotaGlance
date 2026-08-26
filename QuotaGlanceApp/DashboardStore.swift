@@ -97,13 +97,17 @@ final class DashboardStore {
     private let cache: any SnapshotCaching
     private let watchSync: any PhoneWatchSynchronizing
     private let settingsDefaults: UserDefaults
-    private let cacheLifetime: TimeInterval = 5 * 60
 
     var accounts: [ProviderAccount]
     var states: [UUID: ProviderPresentation]
     var providerErrors: [AIProvider: PresentationError] = [:]
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
+    var refreshInterval: RefreshInterval {
+        didSet {
+            RefreshIntervalPreferences.save(refreshInterval, to: settingsDefaults)
+        }
+    }
     var appLanguage: AppLanguage {
         didSet {
             settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
@@ -126,6 +130,7 @@ final class DashboardStore {
         self.cache = cache
         self.watchSync = watchSync
         self.settingsDefaults = settingsDefaults
+        refreshInterval = RefreshIntervalPreferences.load(from: settingsDefaults)
         appLanguage = settingsDefaults.string(forKey: AppLanguage.defaultsKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
 
@@ -264,10 +269,13 @@ final class DashboardStore {
     }
 
     func refreshAll(force: Bool) async {
+        let now = Date()
         for account in accounts where states[account.id]?.isConnected == true {
-            if !force,
-               let updatedAt = states[account.id]?.snapshot?.updatedAt,
-               Date().timeIntervalSince(updatedAt) <= cacheLifetime {
+            if !refreshInterval.shouldRefresh(
+                lastSuccessfulUpdate: states[account.id]?.snapshot?.updatedAt,
+                force: force,
+                now: now
+            ) {
                 continue
             }
             await refresh(account.id)

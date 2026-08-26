@@ -326,3 +326,96 @@ struct UsageModelsTests {
         #expect(cache.load()?.watchAccountIdentifiers == [accountIdentifier])
     }
 }
+
+@Suite("Refresh interval")
+struct RefreshIntervalTests {
+    @Test("Default is 30 minutes")
+    func defaultInterval() {
+        let interval = RefreshInterval.defaultInterval
+
+        #expect(interval.value == 30)
+        #expect(interval.unit == .minute)
+        #expect(interval.timeInterval == Optional<TimeInterval>(1_800))
+    }
+
+    @Test("Minute and hour ranges match settings pickers")
+    func validRanges() {
+        #expect(Array(RefreshIntervalUnit.minute.valueRange) == Array(0...59))
+        #expect(Array(RefreshIntervalUnit.hour.valueRange) == Array(0...23))
+    }
+
+    @Test("Changing to hours clamps an invalid minute value")
+    func unitChangeClampsValue() {
+        let minutes = RefreshInterval(value: 59, unit: .minute)
+        let hours = minutes.replacingUnit(.hour)
+
+        #expect(hours.value == 23)
+        #expect(hours.unit == .hour)
+        #expect(hours.timeInterval == Optional<TimeInterval>(82_800))
+    }
+
+    @Test("Zero disables automatic refresh for both units")
+    func zeroDisablesAutomaticRefresh() {
+        let now = Date(timeIntervalSince1970: 10_000)
+
+        for unit in RefreshIntervalUnit.allCases {
+            let interval = RefreshInterval(value: 0, unit: unit)
+            #expect(interval.timeInterval == nil)
+            #expect(!interval.shouldRefresh(lastSuccessfulUpdate: nil, now: now))
+            #expect(!interval.shouldRefresh(lastSuccessfulUpdate: .distantPast, now: now))
+            #expect(interval.shouldRefresh(lastSuccessfulUpdate: nil, force: true, now: now))
+        }
+    }
+
+    @Test("Automatic refresh uses the successful-update boundary")
+    func refreshBoundary() {
+        let interval = RefreshInterval(value: 10, unit: .minute)
+        let lastUpdate = Date(timeIntervalSince1970: 1_000)
+
+        #expect(!interval.shouldRefresh(
+            lastSuccessfulUpdate: lastUpdate,
+            now: lastUpdate.addingTimeInterval(599)
+        ))
+        #expect(interval.shouldRefresh(
+            lastSuccessfulUpdate: lastUpdate,
+            now: lastUpdate.addingTimeInterval(600)
+        ))
+        #expect(interval.shouldRefresh(lastSuccessfulUpdate: nil, now: lastUpdate))
+    }
+
+    @Test("Two hours converts to seconds and gates refresh")
+    func hoursRefreshBoundary() {
+        let interval = RefreshInterval(value: 2, unit: .hour)
+        let lastUpdate = Date(timeIntervalSince1970: 1_000)
+
+        #expect(interval.timeInterval == Optional<TimeInterval>(7_200))
+        #expect(!interval.shouldRefresh(
+            lastSuccessfulUpdate: lastUpdate,
+            now: lastUpdate.addingTimeInterval(7_199)
+        ))
+        #expect(interval.shouldRefresh(
+            lastSuccessfulUpdate: lastUpdate,
+            now: lastUpdate.addingTimeInterval(7_200)
+        ))
+    }
+
+    @Test("Preferences default, persist, and normalize values")
+    func preferencesPersistence() {
+        let suiteName = "RefreshIntervalTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(RefreshIntervalPreferences.load(from: defaults) == .defaultInterval)
+
+        let saved = RefreshInterval(value: 30, unit: .minute)
+        RefreshIntervalPreferences.save(saved, to: defaults)
+        #expect(RefreshIntervalPreferences.load(from: defaults) == saved)
+
+        defaults.set(59, forKey: RefreshIntervalPreferences.valueKey)
+        defaults.set(RefreshIntervalUnit.hour.rawValue, forKey: RefreshIntervalPreferences.unitKey)
+        #expect(RefreshIntervalPreferences.load(from: defaults) == RefreshInterval(value: 23, unit: .hour))
+
+        defaults.removeObject(forKey: RefreshIntervalPreferences.valueKey)
+        #expect(RefreshIntervalPreferences.load(from: defaults) == .defaultInterval)
+    }
+}
