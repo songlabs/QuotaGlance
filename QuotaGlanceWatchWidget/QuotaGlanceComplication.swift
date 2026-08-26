@@ -133,7 +133,7 @@ private struct ComplicationView: View {
 
             ForEach(accounts) { account in
                 HStack(spacing: 3) {
-                    accountIdentity(account)
+                    compactAccountIdentity(account)
                     Spacer(minLength: 2)
                     HStack(spacing: 3) {
                         Text("5H")
@@ -161,6 +161,19 @@ private struct ComplicationView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .allowsTightening(true)
+        }
+    }
+
+    private func compactAccountIdentity(_ account: AccountUsagePresentation) -> some View {
+        ViewThatFits(in: .horizontal) {
+            accountIdentity(account)
+                .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 3) {
+                Text(providerSymbol(account.provider))
+                    .foregroundStyle(account.provider.accent)
+                Text(String(account.displayName.prefix(1)))
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
     }
 

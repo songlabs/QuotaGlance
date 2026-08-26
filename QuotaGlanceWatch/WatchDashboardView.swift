@@ -50,25 +50,22 @@ struct WatchDashboardView: View {
                 Button {
                     Task { await store.refresh() }
                 } label: {
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        HStack(spacing: 6) {
-                            if store.isRefreshing {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            Text(store.isRefreshing ? String(localized: "Refreshing…") : String(localized: "Refresh data"))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
+                    HStack(spacing: 6) {
+                        if store.isRefreshing {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
                         }
-                        Spacer(minLength: 0)
+                        Text(store.isRefreshing ? String(localized: "Refreshing…") : String(localized: "Refresh data"))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(QuotaGlanceTheme.brandAccent)
                 .disabled(store.isRefreshing)
+                .frame(maxWidth: .infinity, alignment: .center)
 
                 if store.refreshFailed {
                     Label(

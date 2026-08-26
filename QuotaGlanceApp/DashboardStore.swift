@@ -108,6 +108,7 @@ final class DashboardStore {
             RefreshIntervalPreferences.save(refreshInterval, to: settingsDefaults)
         }
     }
+    private(set) var watchAccountIdentifiers: [UUID]
     var appLanguage: AppLanguage {
         didSet {
             settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
@@ -181,6 +182,9 @@ final class DashboardStore {
                 cache.setWatchAccountIdentifiers(migratedSelection)
             }
         }
+        let availableIdentifiers = Set(loadedAccounts.map(\.id))
+        watchAccountIdentifiers = (cache.watchAccountIdentifiers() ?? [])
+            .filter { availableIdentifiers.contains($0) }
 
         watchSync.setRefreshHandler { [weak self] in
             guard let self else { return false }
@@ -224,12 +228,6 @@ final class DashboardStore {
         publishSnapshots()
     }
 
-    var watchAccountIdentifiers: [UUID] {
-        let availableIdentifiers = Set(accounts.map(\.id))
-        return (cache.watchAccountIdentifiers() ?? [])
-            .filter { availableIdentifiers.contains($0) }
-    }
-
     func isSelectedForWatch(_ accountIdentifier: UUID) -> Bool {
         watchAccountIdentifiers.contains(accountIdentifier)
     }
@@ -255,6 +253,7 @@ final class DashboardStore {
             }
             updated = added
         }
+        watchAccountIdentifiers = updated
         cache.setWatchAccountIdentifiers(updated)
         publishSnapshots()
         return true
@@ -382,7 +381,8 @@ final class DashboardStore {
                 cache.setSelectedAccountIdentifier(account.id, for: provider)
             }
             if cache.watchAccountIdentifiers() == nil {
-                cache.setWatchAccountIdentifiers([account.id])
+                watchAccountIdentifiers = [account.id]
+                cache.setWatchAccountIdentifiers(watchAccountIdentifiers)
             }
             await refresh(account.id)
         } catch {
@@ -413,7 +413,8 @@ final class DashboardStore {
             states[accountIdentifier]?.account = updatedAccount
             states[accountIdentifier]?.isRefreshing = false
             if cache.watchAccountIdentifiers() == nil {
-                cache.setWatchAccountIdentifiers([accountIdentifier])
+                watchAccountIdentifiers = [accountIdentifier]
+                cache.setWatchAccountIdentifiers(watchAccountIdentifiers)
             }
             await refresh(accountIdentifier)
         } catch {
@@ -438,7 +439,8 @@ final class DashboardStore {
                 cache.setSelectedAccountIdentifier(accounts(for: account.provider).first?.id, for: account.provider)
             }
             if let watchSelection = cache.watchAccountIdentifiers() {
-                cache.setWatchAccountIdentifiers(watchSelection.filter { $0 != accountIdentifier })
+                watchAccountIdentifiers = watchSelection.filter { $0 != accountIdentifier }
+                cache.setWatchAccountIdentifiers(watchAccountIdentifiers)
             }
             publishSnapshots()
         } catch {
