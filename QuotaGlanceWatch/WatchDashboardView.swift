@@ -148,7 +148,7 @@ private struct WatchAccountCard: View {
 }
 
 @MainActor
-private enum WatchPreview {
+enum WatchPreview {
     private static let codexID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
     private static let secondCodexID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     private static let claudeID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!

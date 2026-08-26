@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 45
     env:
       APP_BUNDLE_ID: com.songlabs.QuotaGlance
-      DERIVED_DATA: ${{ runner.temp }}/DerivedData
+      WATCH_BUNDLE_ID: com.songlabs.QuotaGlance.watchkitapp
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,84 +24,144 @@ jobs:
 
       - name: Select and verify Xcode 26.3
         run: |
+          set -euo pipefail
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          xcodebuild -version
-          xcrun simctl list devices available
+          xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.log"
+          xcrun simctl list devices available | tee "$RUNNER_TEMP/available-simulators.log"
+          xcrun simctl help pair | tee "$RUNNER_TEMP/simctl-pair-help.log"
 
-      - name: Select and boot iPhone Simulator
+      - name: Select required Simulators
         run: |
           set -euo pipefail
-          simulator=$(xcrun simctl list devices available -j | ruby -rjson -e '
-            runtimes = JSON.parse(STDIN.read).fetch("devices").filter_map do |runtime, devices|
-              version = runtime[/iOS[- ](\d+(?:[-.]\d+)*)/, 1]
-              next unless version
-              [version.split(/[-.]/).map(&:to_i), version.tr("-", "."), devices]
+          selections=$(xcrun simctl list devices available -j | ruby -rjson -e '
+            devices_by_runtime = JSON.parse(STDIN.read).fetch("devices")
+
+            choose = lambda do |platform, required_name|
+              candidates = devices_by_runtime.filter_map do |runtime, devices|
+                version = runtime[%r{SimRuntime\.#{platform}-(\d+(?:-\d+)*)}, 1]
+                next unless version && version.split("-").first.to_i == 26
+                matches = devices.select do |device|
+                  required_name == "iPhone 17" ? device["name"] == required_name : device["name"].start_with?(required_name)
+                end
+                next if matches.empty?
+                device = matches.max_by { |item| item.fetch("name")[/\((\d+)mm\)/, 1].to_i }
+                [version.split("-").map(&:to_i), version.tr("-", "."), device]
+              end
+              candidates.max_by(&:first)
             end
-            runtime = runtimes.select { |version, _, _| version.first >= 26 }.max_by(&:first)
-            abort "No available iOS 26 or newer simulator runtime" unless runtime
-            phone = runtime.last.find { |device| device["name"].start_with?("iPhone") }
-            abort "No available iPhone in the selected simulator runtime" unless phone
-            puts [phone.fetch("udid"), phone.fetch("name"), runtime[1]].join("|")
+
+            phone = choose.call("iOS", "iPhone 17")
+            abort "Required simulator not found: iPhone 17" unless phone
+            watch = choose.call("watchOS", "Apple Watch Series 11")
+            abort "Required simulator not found: Apple Watch Series 11" unless watch
+            puts [phone[2].fetch("udid"), phone[2].fetch("name"), phone[1]].join("|")
+            puts [watch[2].fetch("udid"), watch[2].fetch("name"), watch[1]].join("|")
           ')
-          IFS='|' read -r SIMULATOR_ID SIMULATOR_NAME SIMULATOR_OS <<< "$simulator"
-          echo "Selected $SIMULATOR_NAME (iOS $SIMULATOR_OS), $SIMULATOR_ID"
-          echo "SIMULATOR_ID=$SIMULATOR_ID" >> "$GITHUB_ENV"
-          echo "SIMULATOR_NAME=$SIMULATOR_NAME" >> "$GITHUB_ENV"
-          echo "SIMULATOR_OS=$SIMULATOR_OS" >> "$GITHUB_ENV"
-          xcrun simctl boot "$SIMULATOR_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          IFS='|' read -r IPHONE_UDID IPHONE_NAME IOS_VERSION <<< "$(sed -n '1p' <<< "$selections")"
+          IFS='|' read -r WATCH_UDID WATCH_NAME WATCHOS_VERSION <<< "$(sed -n '2p' <<< "$selections")"
+          {
+            echo "IPHONE_UDID=$IPHONE_UDID"
+            echo "IPHONE_NAME=$IPHONE_NAME"
+            echo "IOS_VERSION=$IOS_VERSION"
+            echo "WATCH_UDID=$WATCH_UDID"
+            echo "WATCH_NAME=$WATCH_NAME"
+            echo "WATCHOS_VERSION=$WATCHOS_VERSION"
+          } >> "$GITHUB_ENV"
+          printf 'iPhone device: %s\niOS runtime: %s\niPhone UDID: %s\n' "$IPHONE_NAME" "$IOS_VERSION" "$IPHONE_UDID"
+          printf 'Watch device: %s\nwatchOS runtime: %s\nWatch UDID: %s\n' "$WATCH_NAME" "$WATCHOS_VERSION" "$WATCH_UDID"
+
+      - name: Pair and boot Simulators
+        run: |
+          set -euo pipefail
+          pairs_file="$RUNNER_TEMP/simctl-pairs.log"
+          xcrun simctl list pairs | tee "$pairs_file"
+          if ! ruby -e 'text = File.read(ARGV[0]); exit(text.include?(ARGV[1]) && text.include?(ARGV[2]) ? 0 : 1)' \
+            "$pairs_file" "$IPHONE_UDID" "$WATCH_UDID"; then
+            echo "Pairing $WATCH_NAME ($WATCH_UDID) with $IPHONE_NAME ($IPHONE_UDID)"
+            xcrun simctl pair "$WATCH_UDID" "$IPHONE_UDID"
+            xcrun simctl list pairs | tee "$pairs_file"
+          fi
+          ruby -e 'text = File.read(ARGV[0]); abort "Target iPhone/Watch pair was not established" unless text.include?(ARGV[1]) && text.include?(ARGV[2])' \
+            "$pairs_file" "$IPHONE_UDID" "$WATCH_UDID"
+          echo "pairing status: paired"
+
+          xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || test "$(xcrun simctl list devices | awk -v id="$IPHONE_UDID" '$0 ~ id { print $NF }')" = "(Booted)"
+          xcrun simctl bootstatus "$IPHONE_UDID" -b
+          xcrun simctl boot "$WATCH_UDID" 2>/dev/null || test "$(xcrun simctl list devices | awk -v id="$WATCH_UDID" '$0 ~ id { print $NF }')" = "(Booted)"
+          xcrun simctl bootstatus "$WATCH_UDID" -b
 
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
 
-      - name: Build Debug app for Simulator
+      - name: Build Debug app for iPhone 17
         run: |
           set -o pipefail
           xcodebuild build \
             -project QuotaGlance.xcodeproj \
             -scheme QuotaGlance \
             -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath "$DERIVED_DATA" \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/simulator-build.log"
 
-      - name: Install, launch, and capture Dashboard
+      - name: Install and launch iPhone and Watch apps
         run: |
           set -euo pipefail
           candidates_file="$RUNNER_TEMP/main-app-candidates.txt"
-          find "$DERIVED_DATA/Build/Products" \
+          find "$RUNNER_TEMP/DerivedData/Build/Products" \
             -type d -path '*Debug-iphonesimulator/QuotaGlance.app' -print > "$candidates_file"
-          candidate_count=$(wc -l < "$candidates_file" | tr -d ' ')
-          if [[ "$candidate_count" != 1 ]]; then
-            echo "Expected one main iOS app, found $candidate_count:" >&2
-            cat "$candidates_file" >&2
-            exit 1
-          fi
+          test "$(wc -l < "$candidates_file" | tr -d ' ')" = 1
           APP_PATH=$(cat "$candidates_file")
           built_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")
           test "$built_bundle_id" = "$APP_BUNDLE_ID"
-          echo "Main app: $APP_PATH ($built_bundle_id)"
+          echo "App path: $APP_PATH"
+          echo "iPhone bundle ID: $built_bundle_id"
 
-          xcrun simctl install "$SIMULATOR_ID" "$APP_PATH"
-          xcrun simctl launch --terminate-running-process \
-            "$SIMULATOR_ID" "$APP_BUNDLE_ID" --screenshot-mode
-          sleep 3
+          watch_candidates="$RUNNER_TEMP/watch-app-candidates.txt"
+          find "$APP_PATH/Watch" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print > "$watch_candidates"
+          test "$(wc -l < "$watch_candidates" | tr -d ' ')" = 1
+          WATCH_APP_PATH=$(cat "$watch_candidates")
+          built_watch_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP_PATH/Info.plist")
+          test "$built_watch_bundle_id" = "$WATCH_BUNDLE_ID"
+          echo "Watch app path: $WATCH_APP_PATH"
+          echo "Watch bundle ID: $built_watch_bundle_id"
+
+          xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
+          xcrun simctl launch --terminate-running-process "$IPHONE_UDID" "$APP_BUNDLE_ID" --screenshot-mode
+
+          if ! xcrun simctl get_app_container "$WATCH_UDID" "$WATCH_BUNDLE_ID" app >/dev/null 2>&1; then
+            xcrun simctl install "$WATCH_UDID" "$WATCH_APP_PATH"
+          fi
+          xcrun simctl launch --terminate-running-process "$WATCH_UDID" "$WATCH_BUNDLE_ID" --screenshot-mode
+          sleep 5
 
           mkdir -p screenshots
-          xcrun simctl io "$SIMULATOR_ID" screenshot screenshots/quota-glance-home.png
-          test -f screenshots/quota-glance-home.png
-          file screenshots/quota-glance-home.png | tee "$RUNNER_TEMP/screenshot-file.log"
+          iphone_screenshot=screenshots/quota-glance-iphone17-home.png
+          watch_screenshot=screenshots/quota-glance-watch-series11-home.png
+          xcrun simctl io "$IPHONE_UDID" screenshot "$iphone_screenshot"
+          xcrun simctl io "$WATCH_UDID" screenshot "$watch_screenshot"
+          test -f "$iphone_screenshot"
+          test -f "$watch_screenshot"
+          echo "Screenshot paths: $iphone_screenshot, $watch_screenshot"
+          file "$iphone_screenshot" "$watch_screenshot" | tee "$RUNNER_TEMP/screenshot-files.log"
           ls -lh screenshots
 
       - name: Collect Simulator diagnostics
-        if: failure() && env.SIMULATOR_ID != ''
+        if: always()
         run: |
-          xcrun simctl list > "$RUNNER_TEMP/simctl-list.log"
-          xcrun simctl spawn "$SIMULATOR_ID" log show \
-            --last 10m --style compact --predicate \
-            'process == "QuotaGlance"' > "$RUNNER_TEMP/quota-glance-simulator.log" || true
+          xcrun simctl list > "$RUNNER_TEMP/simctl-list.log" || true
+          xcrun simctl list pairs > "$RUNNER_TEMP/simctl-pairs-final.log" || true
+          if [[ -n "${IPHONE_UDID:-}" ]]; then
+            xcrun simctl spawn "$IPHONE_UDID" log show --last 10m --style compact \
+              --predicate 'process == "QuotaGlance"' > "$RUNNER_TEMP/quota-glance-iphone.log" || true
+          fi
+          if [[ -n "${WATCH_UDID:-}" ]]; then
+            xcrun simctl spawn "$WATCH_UDID" log show --last 10m --style compact \
+              --predicate 'process == "QuotaGlance Watch App"' > "$RUNNER_TEMP/quota-glance-watch.log" || true
+          fi
 
       - name: Upload screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: quota-glance-simulator-screenshots
