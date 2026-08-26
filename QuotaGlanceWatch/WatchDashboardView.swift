@@ -19,7 +19,11 @@ struct WatchDashboardView: View {
                     ForEach(AIProvider.allCases) { provider in
                         let accounts = store.accountPresentations(for: provider)
                         if !accounts.isEmpty {
-                            WatchProviderSection(provider: provider, accounts: accounts)
+                            WatchProviderSection(
+                                provider: provider,
+                                accounts: accounts,
+                                showsWeekly: store.envelope?.accessLevel.hasProFeatures ?? true
+                            )
                         }
                     }
                 } else {
@@ -89,6 +93,7 @@ struct WatchDashboardView: View {
 private struct WatchProviderSection: View {
     let provider: AIProvider
     let accounts: [AccountUsagePresentation]
+    let showsWeekly: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -100,7 +105,7 @@ private struct WatchProviderSection: View {
             .foregroundStyle(provider.accent)
 
             ForEach(accounts) { account in
-                WatchAccountCard(account: account)
+                WatchAccountCard(account: account, showsWeekly: showsWeekly)
             }
         }
     }
@@ -108,6 +113,7 @@ private struct WatchProviderSection: View {
 
 private struct WatchAccountCard: View {
     let account: AccountUsagePresentation
+    let showsWeekly: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -116,7 +122,9 @@ private struct WatchAccountCard: View {
                 .lineLimit(1)
 
             quotaRow(label: "5H", window: account.snapshot?.session)
-            quotaRow(label: String(localized: "Weekly"), window: account.snapshot?.weekly)
+            if showsWeekly {
+                quotaRow(label: String(localized: "Weekly"), window: account.snapshot?.weekly)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)

@@ -20,7 +20,8 @@ enum AppEnvironment {
             credentials: credentials,
             registry: AccountRegistry(),
             cache: AppGroupSnapshotCache(),
-            watchSync: PhoneWatchSync()
+            watchSync: PhoneWatchSync(),
+            purchaseManager: PurchaseManager()
         )
     }
 }

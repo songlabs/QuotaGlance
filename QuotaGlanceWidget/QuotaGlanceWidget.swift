@@ -46,12 +46,23 @@ private struct PhoneWidgetView: View {
     let entry: PhoneWidgetEntry
 
     var body: some View {
-        if let envelope = entry.envelope, !envelope.snapshots.isEmpty {
+        if let envelope = entry.envelope, envelope.accessLevel.hasProFeatures, !envelope.snapshots.isEmpty {
             if family == .systemSmall {
                 small(envelope)
             } else {
                 medium(envelope)
             }
+        } else if entry.envelope?.accessLevel == .free {
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: "crown.fill")
+                    .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                Text(String(localized: "Upgrade to Pro"))
+                    .font(.headline)
+                Text(String(localized: "Lifetime Unlock"))
+                    .font(.caption)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Text("QuotaGlance")

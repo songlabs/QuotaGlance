@@ -91,6 +91,7 @@ struct ProviderPresentation: Equatable {
 @Observable
 @MainActor
 final class DashboardStore {
+    let purchaseManager: PurchaseManager
     private let providers: [AIProvider: any UsageProvider]
     private let credentials: KeychainCredentialStore
     private let registry: AccountRegistry
@@ -103,6 +104,7 @@ final class DashboardStore {
     var providerErrors: [AIProvider: PresentationError] = [:]
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
+    var isShowingUpgrade = false
     var refreshInterval: RefreshInterval {
         didSet {
             RefreshIntervalPreferences.save(refreshInterval, to: settingsDefaults)
@@ -122,6 +124,7 @@ final class DashboardStore {
         registry: AccountRegistry,
         cache: any SnapshotCaching,
         watchSync: any PhoneWatchSynchronizing,
+        purchaseManager: PurchaseManager = PurchaseManager(),
         settingsDefaults: UserDefaults = .standard,
         migrateLegacyCredentials: Bool = true
     ) {
@@ -130,6 +133,7 @@ final class DashboardStore {
         self.registry = registry
         self.cache = cache
         self.watchSync = watchSync
+        self.purchaseManager = purchaseManager
         self.settingsDefaults = settingsDefaults
         refreshInterval = RefreshIntervalPreferences.load(from: settingsDefaults)
         appLanguage = settingsDefaults.string(forKey: AppLanguage.defaultsKey)
@@ -210,7 +214,22 @@ final class DashboardStore {
     }
 
     func accounts(for provider: AIProvider) -> [ProviderAccount] {
-        accounts.filter { $0.provider == provider }.sorted { $0.ordinal < $1.ordinal }
+        let matching = accounts.filter { $0.provider == provider }.sorted { $0.ordinal < $1.ordinal }
+        guard !purchaseManager.hasProFeatures else { return matching }
+        guard let freeAccount = accounts.first,
+              freeAccount.provider == provider else { return [] }
+        return matching.filter { $0.id == freeAccount.id }
+    }
+
+    var accessLevel: AccessLevel { purchaseManager.accessLevel }
+    var canAddAccount: Bool { purchaseManager.hasProFeatures || accounts.isEmpty }
+
+    func requirePro() { isShowingUpgrade = true }
+
+    func refreshAccess() async {
+        let previous = accessLevel
+        await purchaseManager.refreshEntitlements()
+        if previous != accessLevel { publishSnapshots() }
     }
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
@@ -242,6 +261,10 @@ final class DashboardStore {
 
     @discardableResult
     func toggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
+        guard purchaseManager.hasProFeatures else {
+            requirePro()
+            return false
+        }
         guard accounts.contains(where: { $0.id == accountIdentifier }) else { return false }
         let current = watchAccountIdentifiers
         let updated: [UUID]
@@ -269,7 +292,8 @@ final class DashboardStore {
 
     func refreshAll(force: Bool) async {
         let now = Date()
-        for account in accounts where states[account.id]?.isConnected == true {
+        let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        for account in activeAccounts where states[account.id]?.isConnected == true {
             if !refreshInterval.shouldRefresh(
                 lastSuccessfulUpdate: states[account.id]?.snapshot?.updatedAt,
                 force: force,
@@ -282,7 +306,8 @@ final class DashboardStore {
     }
 
     private func refreshAllForWatch() async -> Bool {
-        let connectedAccounts = accounts.filter { states[$0.id]?.isConnected == true }
+        let eligibleAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        let connectedAccounts = eligibleAccounts.filter { states[$0.id]?.isConnected == true }
         guard !connectedAccounts.isEmpty else { return false }
         var succeeded = true
         for account in connectedAccounts {
@@ -341,6 +366,10 @@ final class DashboardStore {
     }
 
     func addAccount(_ provider: AIProvider) async {
+        guard canAddAccount else {
+            requirePro()
+            return
+        }
         guard let usageProvider = providers[provider], !connectingProviders.contains(provider) else { return }
         let pendingAccount = registry.makeAccount(for: provider, in: accounts)
         connectingProviders.insert(provider)
@@ -454,11 +483,12 @@ final class DashboardStore {
     }
 
     private func publishSnapshots() {
-        let snapshots = accounts.compactMap { states[$0.id]?.snapshot }
+        let entitledAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        let snapshots = entitledAccounts.compactMap { states[$0.id]?.snapshot }
         let envelope = SnapshotEnvelope(
             snapshots: snapshots,
-            displayLimit: displayLimit,
-            accounts: accounts.map { account in
+            displayLimit: purchaseManager.hasProFeatures ? displayLimit : .fiveHour,
+            accounts: entitledAccounts.map { account in
                 AccountDisplayMetadata(
                     id: account.id,
                     provider: account.provider,
@@ -466,7 +496,10 @@ final class DashboardStore {
                     displayName: accountDisplayName(account)
                 )
             },
-            watchAccountIdentifiers: watchAccountIdentifiers
+            watchAccountIdentifiers: purchaseManager.hasProFeatures
+                ? watchAccountIdentifiers
+                : entitledAccounts.first.map { [$0.id] } ?? [],
+            accessLevel: accessLevel
         )
         try? cache.save(envelope)
         watchSync.send(envelope)

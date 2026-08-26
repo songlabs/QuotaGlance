@@ -12,6 +12,20 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Button {
+                        store.requirePro()
+                    } label: {
+                        LabeledContent {
+                            Text(store.accessLevel == .pro
+                                 ? AppLocalization.string("Lifetime Unlock", locale: locale)
+                                 : AppLocalization.string("Upgrade to Pro", locale: locale))
+                        } label: {
+                            Label(accessTitle, systemImage: "crown.fill")
+                        }
+                    }
+                }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
                 Section(AppLocalization.string("Language", locale: locale)) {
                     Picker(AppLocalization.string("Language", locale: locale), selection: $store.appLanguage) {
                         ForEach(AppLanguage.allCases) { language in
@@ -57,7 +71,8 @@ struct SettingsView: View {
                             accountRow(account)
                         }
                         Button {
-                            Task { await store.addAccount(provider) }
+                            if store.canAddAccount { Task { await store.addAccount(provider) } }
+                            else { store.requirePro() }
                         } label: {
                             Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                         }
@@ -87,13 +102,15 @@ struct SettingsView: View {
                         Text(AppLocalization.string("5 hours", locale: locale)).tag(QuotaDisplayLimit.fiveHour)
                         Text(AppLocalization.string("Weekly", locale: locale)).tag(QuotaDisplayLimit.weekly)
                     }
+                    .disabled(!store.purchaseManager.hasProFeatures)
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 Section {
                     ForEach(watchAccounts) { account in
                         Button {
-                            store.toggleWatchSelection(account.id)
+                            if store.purchaseManager.hasProFeatures { store.toggleWatchSelection(account.id) }
+                            else { store.requirePro() }
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: account.provider == .codex ? "terminal" : "sparkles")
@@ -108,7 +125,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        .disabled(!store.canToggleWatchSelection(account.id))
+                        .disabled(store.purchaseManager.hasProFeatures && !store.canToggleWatchSelection(account.id))
                     }
                 } header: {
                     Text(AppLocalization.string("Apple Watch display accounts", locale: locale))
@@ -166,6 +183,14 @@ struct SettingsView: View {
             Button(AppLocalization.string("Cancel", locale: locale), role: .cancel) { accountPendingDeletion = nil }
         } message: {
             Text(AppLocalization.string("This removes only the selected account and its cached usage data.", locale: locale))
+        }
+    }
+
+    private var accessTitle: String {
+        switch store.accessLevel {
+        case .trial: AppLocalization.string("7-Day Free Trial", locale: locale)
+        case .free: AppLocalization.string("Free", locale: locale)
+        case .pro: AppLocalization.string("Pro", locale: locale)
         }
     }
 

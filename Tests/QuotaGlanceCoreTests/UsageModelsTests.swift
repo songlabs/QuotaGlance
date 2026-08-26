@@ -4,6 +4,14 @@ import Testing
 
 @Suite("Remaining percentage")
 struct UsageModelsTests {
+    @Test("Access resolves purchased, active trial, and expired trial states")
+    func accessResolution() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(AccessLevel.resolve(isPurchased: true, trialEndsAt: now, now: now) == .pro)
+        #expect(AccessLevel.resolve(isPurchased: false, trialEndsAt: now.addingTimeInterval(1), now: now) == .trial)
+        #expect(AccessLevel.resolve(isPurchased: false, trialEndsAt: now, now: now) == .free)
+    }
+
     @Test("Used percentage converts to remaining", arguments: [
         (0.0, 100.0),
         (28.0, 72.0),

@@ -38,13 +38,28 @@ struct DashboardView: View {
         .sheet(isPresented: $store.isShowingSettings) {
             SettingsView(store: store)
         }
+        .sheet(isPresented: $store.isShowingUpgrade) {
+            UpgradeView(store: store)
+        }
         .task {
+            await store.purchaseManager.start()
+            await store.refreshAccess()
             await store.backfillAccountIdentityLabels()
             await store.refreshAll(force: false)
+            if store.accessLevel == .trial {
+                let remaining = store.purchaseManager.trialTimeRemaining
+                if remaining > 0 {
+                    try? await Task.sleep(for: .seconds(remaining))
+                    await store.refreshAccess()
+                }
+            }
         }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
-            Task { await store.refreshAll(force: false) }
+            Task {
+                await store.refreshAccess()
+                await store.refreshAll(force: false)
+            }
         }
     }
 }
@@ -64,7 +79,8 @@ private struct ProviderGroup: View {
                     .foregroundStyle(provider.accent)
                 Spacer()
                 Button {
-                    Task { await store.addAccount(provider) }
+                    if store.canAddAccount { Task { await store.addAccount(provider) } }
+                    else { store.requirePro() }
                 } label: {
                     Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                 }
@@ -84,6 +100,7 @@ private struct ProviderGroup: View {
                     if let state = store.states[account.id] {
                         AccountSection(
                             state: state,
+                            showsWeekly: store.purchaseManager.hasProFeatures,
                             refresh: { await store.refresh(account.id) },
                             reconnect: { await store.reconnect(account.id) }
                         )
@@ -110,6 +127,7 @@ private struct ProviderGroup: View {
 
 private struct AccountSection: View {
     let state: ProviderPresentation
+    let showsWeekly: Bool
     let refresh: () async -> Void
     let reconnect: () async -> Void
     @Environment(\.locale) private var locale
@@ -120,6 +138,7 @@ private struct AccountSection: View {
                 UsageCard(
                     snapshot: snapshot,
                     accountName: accountName,
+                    showsWeekly: showsWeekly,
                     isRefreshing: state.isRefreshing,
                     errorMessage: state.error?.message(locale: locale),
                     refresh: refresh,

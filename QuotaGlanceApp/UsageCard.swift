@@ -4,6 +4,7 @@ import SwiftUI
 struct UsageCard: View {
     let snapshot: UsageSnapshot
     let accountName: String
+    let showsWeekly: Bool
     let isRefreshing: Bool
     let errorMessage: String?
     let refresh: () async -> Void
@@ -50,8 +51,10 @@ struct UsageCard: View {
                 Spacer(minLength: 0)
             }
 
-            Divider().overlay(QuotaGlanceTheme.border)
-            WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
+            if showsWeekly {
+                Divider().overlay(QuotaGlanceTheme.border)
+                WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
+            }
 
             HStack(alignment: .firstTextBaseline) {
                 Text(AppLocalization.string(
