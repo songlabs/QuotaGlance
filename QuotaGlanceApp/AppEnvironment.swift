@@ -4,6 +4,11 @@ import QuotaGlanceCore
 @MainActor
 enum AppEnvironment {
     static func makeDashboardStore() -> DashboardStore {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--screenshot-mode") {
+            return PreviewFactory.dashboard(states: PreviewFactory.normalStates)
+        }
+#endif
         let credentials = KeychainCredentialStore()
         let oauthSession = LoopbackOAuthSession()
         let providers: [AIProvider: any UsageProvider] = [
