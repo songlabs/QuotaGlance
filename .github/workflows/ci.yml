@@ -32,6 +32,8 @@ jobs:
       - name: Validate delivery scripts
         run: |
           ruby -c Scripts/assign_testflight_group.rb
+          bash -n Scripts/install_distribution_signing.sh
+          Scripts/install_distribution_signing.sh --test-profile-expiration
           bash -n Scripts/verify_distribution_archive.sh
 
       - name: Resolve Swift packages

@@ -1,6 +1,58 @@
 #!/bin/bash
 set -euo pipefail
 
+profile_expiration_epoch() {
+  local expiration_date=$1
+  local expiration_epoch
+
+  if ! expiration_epoch="$(LC_ALL=C date -u -j -f '%a %b %d %T %Z %Y' "$expiration_date" '+%s' 2>/dev/null)"; then
+    echo "Unable to parse profile expiration date: $expiration_date" >&2
+    return 1
+  fi
+  if [[ ! "$expiration_epoch" =~ ^[0-9]+$ ]]; then
+    echo "Unable to parse profile expiration date: $expiration_date" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$expiration_epoch"
+}
+
+run_profile_expiration_regression_test() {
+  local reference_epoch future_epoch past_epoch invalid_output
+
+  reference_epoch="$(profile_expiration_epoch 'Wed Aug 26 00:00:00 UTC 2026')"
+  future_epoch="$(profile_expiration_epoch 'Thu Aug 26 02:09:03 UTC 2027')"
+  past_epoch="$(profile_expiration_epoch 'Tue Aug 26 02:09:03 UTC 2025')"
+
+  test "$future_epoch" -eq 1819246143 || {
+    echo "Unexpected epoch for the 2027 profile expiration date: $future_epoch" >&2
+    return 1
+  }
+  (( future_epoch > reference_epoch )) || {
+    echo "Expected the 2027 profile expiration date to be in the future." >&2
+    return 1
+  }
+  (( past_epoch <= reference_epoch )) || {
+    echo "Expected the 2025 profile expiration date to be expired." >&2
+    return 1
+  }
+  if invalid_output="$(profile_expiration_epoch 'invalid profile expiration date' 2>&1)"; then
+    echo "Expected an invalid profile expiration date to fail parsing." >&2
+    return 1
+  fi
+  test "$invalid_output" = 'Unable to parse profile expiration date: invalid profile expiration date' || {
+    echo "Unexpected invalid-date error: $invalid_output" >&2
+    return 1
+  }
+
+  echo "Profile expiration date regression test passed."
+}
+
+if [[ "${1:-}" == "--test-profile-expiration" ]]; then
+  run_profile_expiration_regression_test
+  exit 0
+fi
+
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 : "${GITHUB_ENV:?GITHUB_ENV is required}"
 : "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
@@ -74,10 +126,13 @@ for profile_definition in "${profiles[@]}"; do
     echo "Enterprise profile rejected for $expected_bundle_id." >&2
     exit 1
   }
-  test "$(date -j -f '%a %b %d %T %Y' "$expiration_date" '+%s')" -gt "$(date '+%s')" || {
+  if ! expiration_epoch="$(profile_expiration_epoch "$expiration_date")"; then
+    exit 1
+  fi
+  if (( expiration_epoch <= $(date '+%s') )); then
     echo "Expired profile rejected for $expected_bundle_id." >&2
     exit 1
-  }
+  fi
 
   installed_profile="$profiles_directory/$uuid.mobileprovision"
   cp "$encoded_profile" "$installed_profile"
