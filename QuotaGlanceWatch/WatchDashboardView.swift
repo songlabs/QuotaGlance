@@ -50,13 +50,19 @@ struct WatchDashboardView: View {
                 Button {
                     Task { await store.refresh() }
                 } label: {
-                    HStack(spacing: 6) {
-                        if store.isRefreshing {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "arrow.clockwise")
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        HStack(spacing: 6) {
+                            if store.isRefreshing {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            Text(store.isRefreshing ? String(localized: "Refreshing…") : String(localized: "Refresh data"))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
-                        Text(store.isRefreshing ? String(localized: "Refreshing…") : String(localized: "Refresh data"))
+                        Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity)
                 }
