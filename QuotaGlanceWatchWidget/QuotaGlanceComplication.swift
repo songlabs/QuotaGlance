@@ -62,7 +62,7 @@ private struct ComplicationView: View {
         entry.envelope?.watchAccountPresentations ?? []
     }
 
-    private var hasProFeatures: Bool { entry.envelope?.accessLevel.hasProFeatures ?? true }
+    private var hasProFeatures: Bool { entry.envelope?.accessLevel.hasProFeatures ?? false }
 
     private var circular: some View {
         let account = selectedAccounts.first

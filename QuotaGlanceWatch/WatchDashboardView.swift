@@ -22,7 +22,7 @@ struct WatchDashboardView: View {
                             WatchProviderSection(
                                 provider: provider,
                                 accounts: accounts,
-                                showsWeekly: store.envelope?.accessLevel.hasProFeatures ?? true
+                                showsWeekly: store.envelope?.accessLevel.hasProFeatures ?? false
                             )
                         }
                     }

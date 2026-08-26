@@ -139,6 +139,16 @@ struct UsageModelsTests {
 
         #expect(envelope.snapshot(for: .codex, accountIdentifier: firstID) == first)
         #expect(envelope.snapshot(for: .codex, accountIdentifier: secondID) == second)
+        #expect(envelope.accessLevel == .free)
+    }
+
+    @Test("Legacy snapshot envelopes without an entitlement fail closed")
+    func legacySnapshotEntitlement() throws {
+        let legacyJSON = #"{"version":1,"snapshots":[]}"#
+        let envelope = try SnapshotCoding.decode(Data(legacyJSON.utf8))
+
+        #expect(envelope.accessLevel == .free)
+        #expect(!envelope.accessLevel.hasProFeatures)
     }
 
     @Test("Account display name follows custom, identity, then fallback priority")
