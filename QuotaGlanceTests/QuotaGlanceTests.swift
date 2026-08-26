@@ -16,4 +16,19 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertNil(snapshot.session)
         XCTAssertNil(snapshot.weekly)
     }
+
+    func testSnapshotEnvelopeDefaultsToFreeAccess() {
+        let envelope = SnapshotEnvelope(snapshots: [])
+
+        XCTAssertEqual(envelope.accessLevel, .free)
+        XCTAssertFalse(envelope.accessLevel.hasProFeatures)
+    }
+
+    func testLegacySnapshotEnvelopeWithoutAccessLevelFailsClosed() throws {
+        let legacyJSON = #"{"version":1,"snapshots":[]}"#
+        let envelope = try SnapshotCoding.decode(Data(legacyJSON.utf8))
+
+        XCTAssertEqual(envelope.accessLevel, .free)
+        XCTAssertFalse(envelope.accessLevel.hasProFeatures)
+    }
 }
