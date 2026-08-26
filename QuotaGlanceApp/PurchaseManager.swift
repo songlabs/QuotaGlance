@@ -25,7 +25,7 @@ final class PurchaseManager {
         updatesTask = observeTransactions()
     }
 
-    deinit { updatesTask?.cancel() }
+    isolated deinit { updatesTask?.cancel() }
 
     var hasProFeatures: Bool { accessLevel.hasProFeatures }
     var canStartTrial: Bool { !hasTrialTransaction && accessLevel != .pro }
