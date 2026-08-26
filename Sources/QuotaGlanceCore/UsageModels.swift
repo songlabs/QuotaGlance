@@ -311,7 +311,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         displayLimit: QuotaDisplayLimit = .fiveHour,
         accounts: [AccountDisplayMetadata] = [],
         watchAccountIdentifiers: [UUID] = [],
-        accessLevel: AccessLevel = .trial
+        accessLevel: AccessLevel = .free
     ) {
         self.version = version
         self.snapshots = snapshots
@@ -390,7 +390,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         snapshots = try container.decode([UsageSnapshot].self, forKey: .snapshots)
         displayLimit = try container.decodeIfPresent(QuotaDisplayLimit.self, forKey: .displayLimit) ?? .fiveHour
         accounts = try container.decodeIfPresent([AccountDisplayMetadata].self, forKey: .accounts) ?? []
-        accessLevel = try container.decodeIfPresent(AccessLevel.self, forKey: .accessLevel) ?? .trial
+        accessLevel = try container.decodeIfPresent(AccessLevel.self, forKey: .accessLevel) ?? .free
         if let identifiers = try container.decodeIfPresent([UUID].self, forKey: .watchAccountIdentifiers) {
             watchAccountIdentifiers = WatchAccountSelection.normalized(identifiers)
         } else {
