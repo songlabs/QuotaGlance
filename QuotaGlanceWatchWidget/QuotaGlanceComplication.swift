@@ -79,26 +79,40 @@ private struct ComplicationView: View {
 
     private var rectangular: some View {
         VStack(alignment: .leading, spacing: 1) {
-            HStack {
-                QuotaGlanceBrandIcon(size: 10)
-                    .widgetAccentable()
-                Text("QuotaGlance").font(.caption2.bold())
-                Spacer()
-                Text(updatedTime).font(.caption2).foregroundStyle(QuotaGlanceTheme.secondaryText)
+            HStack(spacing: 3) {
+                Text(String(localized: "Updated"))
+                Text(rectangularUpdatedTime)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                    .monospacedDigit()
             }
+            .font(.caption2)
+            .lineLimit(1)
+
             ForEach(AIProvider.allCases) { provider in
                 if let snapshot = entry.envelope?.snapshot(for: provider) {
-                    let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
-                    let window = displayLimit.window(in: snapshot)
-                    HStack {
-                        Text(provider.shortName).foregroundStyle(provider.accent)
-                        Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
+                    HStack(spacing: 3) {
+                        Text(providerSymbol(provider))
+                            .foregroundStyle(provider.accent)
+                        Text("5H")
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                        Text(remainingPercentage(snapshot.session))
                             .fontWeight(.semibold)
                             .monospacedDigit()
-                        Spacer()
-                        Text(limitShortLabel(displayLimit)).foregroundStyle(QuotaGlanceTheme.secondaryText)
+                        Text("W")
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                        Text(remainingPercentage(snapshot.weekly))
+                            .fontWeight(.semibold)
+                            .monospacedDigit()
+                        Spacer(minLength: 0)
+                        Text("↻")
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                        Text(resetTime(snapshot.weekly?.resetAt))
+                            .monospacedDigit()
                     }
                     .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .allowsTightening(true)
                 }
             }
         }
@@ -117,6 +131,38 @@ private struct ComplicationView: View {
     private var updatedTime: String {
         guard let date = entry.envelope?.snapshots.map(\.updatedAt).max() else { return "—" }
         return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var rectangularUpdatedTime: String {
+        guard let date = entry.envelope?.snapshots.map(\.updatedAt).max() else { return "—" }
+        return compactDateText(date, includesDate: false)
+    }
+
+    private func providerSymbol(_ provider: AIProvider) -> String {
+        switch provider {
+        case .codex: "◎"
+        case .claude: "✳︎"
+        }
+    }
+
+    private func remainingPercentage(_ window: UsageWindow?) -> String {
+        window.map { "\($0.roundedRemainingPercentage)%" } ?? "—"
+    }
+
+    private func resetTime(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        return compactDateText(date, includesDate: !calendar.isDateInToday(date))
+    }
+
+    private func compactDateText(_ date: Date, includesDate: Bool) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.calendar = .current
+        formatter.timeZone = .current
+        formatter.dateFormat = includesDate ? "M/d HH:mm" : "HH:mm"
+        return formatter.string(from: date)
     }
 
     private func accessibilityValue(_ snapshot: UsageSnapshot?) -> String {
@@ -143,9 +189,30 @@ private struct ComplicationView: View {
 }
 
 private enum ComplicationPreview {
+    private static let calendar = Calendar.current
+    private static let today = Date()
+    private static let updatedAt = calendar.date(bySettingHour: 16, minute: 25, second: 0, of: today)!
+    private static let codexWeeklyReset = calendar.date(bySettingHour: 18, minute: 30, second: 0, of: today)!
+    private static let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: today))!
+    private static let claudeWeeklyReset = calendar.nextDate(
+        after: tomorrow,
+        matching: DateComponents(month: 8, day: 30, hour: 9, minute: 0),
+        matchingPolicy: .nextTime
+    )!
+
     static let envelope = SnapshotEnvelope(snapshots: [
-        UsageSnapshot(provider: .codex, session: UsageWindow(usedPercentage: 28, resetAt: nil), weekly: UsageWindow(usedPercentage: 59, resetAt: nil), updatedAt: Date()),
-        UsageSnapshot(provider: .claude, session: UsageWindow(usedPercentage: 52, resetAt: nil), weekly: UsageWindow(usedPercentage: 37, resetAt: nil), updatedAt: Date()),
+        UsageSnapshot(
+            provider: .codex,
+            session: UsageWindow(usedPercentage: 28, resetAt: nil),
+            weekly: UsageWindow(usedPercentage: 59, resetAt: codexWeeklyReset),
+            updatedAt: updatedAt
+        ),
+        UsageSnapshot(
+            provider: .claude,
+            session: UsageWindow(usedPercentage: 52, resetAt: nil),
+            weekly: UsageWindow(usedPercentage: 37, resetAt: claudeWeeklyReset),
+            updatedAt: updatedAt
+        ),
     ])
 }
 
