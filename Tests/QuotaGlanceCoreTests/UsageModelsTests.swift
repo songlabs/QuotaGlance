@@ -4,12 +4,38 @@ import Testing
 
 @Suite("Remaining percentage")
 struct UsageModelsTests {
-    @Test("Access resolves purchased, active trial, and expired trial states")
+    @Test("StoreKit purchase dates resolve Free, Trial, and Pro states")
     func accessResolution() {
-        let now = Date(timeIntervalSince1970: 1_000)
-        #expect(AccessLevel.resolve(isPurchased: true, trialEndsAt: now, now: now) == .pro)
-        #expect(AccessLevel.resolve(isPurchased: false, trialEndsAt: now.addingTimeInterval(1), now: now) == .trial)
-        #expect(AccessLevel.resolve(isPurchased: false, trialEndsAt: now, now: now) == .free)
+        let day: TimeInterval = 24 * 60 * 60
+        let duration = 7 * day
+        let now = Date(timeIntervalSince1970: 20 * day)
+        let resolve: (Bool, Date?, Date) -> AccessLevel = { hasLifetime, trialDate, effectiveNow in
+            .resolve(
+                hasLifetimePurchase: hasLifetime,
+                trialPurchaseDate: trialDate,
+                trialDuration: duration,
+                now: effectiveNow
+            )
+        }
+
+        // New user: no transaction, so Free and eligible to obtain the Trial product.
+        #expect(resolve(false, nil, now) == .free)
+        #expect(resolve(false, now, now) == .trial)
+        #expect(resolve(false, now.addingTimeInterval(-6 * day), now) == .trial)
+        #expect(resolve(false, now.addingTimeInterval(-8 * day), now) == .free)
+        #expect(resolve(true, now.addingTimeInterval(-8 * day), now) == .pro)
+        #expect(resolve(true, now, now) == .pro)
+
+        // Restore uses the original purchase date and cannot restart an expired trial.
+        let originalExpiredPurchase = now.addingTimeInterval(-30 * day)
+        #expect(resolve(false, originalExpiredPurchase, now) == .free)
+        #expect(resolve(true, nil, now) == .pro)
+
+        // A greatest-observed clock value prevents moving time backwards from extending Trial.
+        let trialPurchase = now.addingTimeInterval(-6 * day)
+        let lastSeen = trialPurchase.addingTimeInterval(8 * day)
+        let rolledBackClock = trialPurchase.addingTimeInterval(day)
+        #expect(resolve(false, trialPurchase, max(lastSeen, rolledBackClock)) == .free)
     }
 
     @Test("Used percentage converts to remaining", arguments: [
