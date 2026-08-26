@@ -9,11 +9,11 @@ struct ComplicationEntry: TimelineEntry {
 
 struct ComplicationProvider: TimelineProvider {
     func placeholder(in context: Context) -> ComplicationEntry {
-        ComplicationEntry(date: Date(), envelope: ComplicationPreview.envelope)
+        ComplicationEntry(date: Date(), envelope: ComplicationPreview.dualEnvelope)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ComplicationEntry) -> Void) {
-        let envelope = SharedWatchSnapshotCache().load() ?? (context.isPreview ? ComplicationPreview.envelope : nil)
+        let envelope = SharedWatchSnapshotCache().load() ?? (context.isPreview ? ComplicationPreview.dualEnvelope : nil)
         completion(ComplicationEntry(date: Date(), envelope: envelope))
     }
 
@@ -58,10 +58,14 @@ private struct ComplicationView: View {
         }
     }
 
+    private var selectedAccounts: [AccountUsagePresentation] {
+        entry.envelope?.watchAccountPresentations ?? []
+    }
+
     private var circular: some View {
-        let snapshot = entry.envelope?.snapshot(for: .codex) ?? entry.envelope?.snapshots.first
+        let account = selectedAccounts.first
         let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
-        let window = snapshot.flatMap { displayLimit.window(in: $0) }
+        let window = account?.snapshot.flatMap { displayLimit.window(in: $0) }
         let remaining = window?.remainingPercentage
         return Gauge(value: remaining ?? 0, in: 0...100) {
             QuotaGlanceBrandIcon(size: 10)
@@ -72,70 +76,133 @@ private struct ComplicationView: View {
                 .monospacedDigit()
         }
         .gaugeStyle(.accessoryCircularCapacity)
-        .tint(snapshot?.provider.accent ?? QuotaGlanceTheme.brandAccent)
+        .tint(account?.provider.accent ?? QuotaGlanceTheme.brandAccent)
         .accessibilityLabel(limitAccessibilityLabel(displayLimit))
-        .accessibilityValue(accessibilityValue(snapshot))
+        .accessibilityValue(accessibilityValue(account?.snapshot))
     }
 
+    @ViewBuilder
     private var rectangular: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 3) {
-                Text(String(localized: "Updated"))
-                Text(rectangularUpdatedTime)
-                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                    .monospacedDigit()
-            }
-            .font(.caption2)
-            .lineLimit(1)
+        if selectedAccounts.count == 1, let account = selectedAccounts.first {
+            singleAccountLayout(account)
+        } else if selectedAccounts.count >= 2 {
+            dualAccountLayout(Array(selectedAccounts.prefix(2)))
+        } else {
+            Text("QuotaGlance —")
+                .font(.caption2)
+        }
+    }
 
-            ForEach(AIProvider.allCases) { provider in
-                if let snapshot = entry.envelope?.snapshot(for: provider) {
+    private func singleAccountLayout(_ account: AccountUsagePresentation) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 3) {
+                    accountIdentity(account)
+                    Spacer(minLength: 2)
+                    Text(String(localized: "Updated"))
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                    updatedDate(account.snapshot)
+                }
+                HStack(spacing: 3) {
+                    accountIdentity(account)
+                    Spacer(minLength: 2)
+                    Image(systemName: "clock")
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                    updatedDate(account.snapshot)
+                }
+            }
+            quotaRow(label: "5H", window: account.snapshot?.session)
+            quotaRow(label: "W", window: account.snapshot?.weekly)
+        }
+        .font(.caption2)
+    }
+
+    private func dualAccountLayout(_ accounts: [AccountUsagePresentation]) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 3) {
+                    Text(String(localized: "Updated"))
+                    updatedDate(latestSnapshot(in: accounts))
+                }
+                HStack(spacing: 3) {
+                    Image(systemName: "clock")
+                    updatedDate(latestSnapshot(in: accounts))
+                }
+            }
+            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+
+            ForEach(accounts) { account in
+                HStack(spacing: 3) {
+                    accountIdentity(account)
+                    Spacer(minLength: 2)
                     HStack(spacing: 3) {
-                        Text(providerSymbol(provider))
-                            .foregroundStyle(provider.accent)
                         Text("5H")
                             .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                        Text(remainingPercentage(snapshot.session))
+                        Text(remainingPercentage(account.snapshot?.session))
                             .fontWeight(.semibold)
-                            .monospacedDigit()
                         Text("W")
                             .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                        Text(remainingPercentage(snapshot.weekly))
+                        Text(remainingPercentage(account.snapshot?.weekly))
                             .fontWeight(.semibold)
-                            .monospacedDigit()
-                        Spacer(minLength: 0)
-                        Text("↻")
-                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                        Text(resetTime(snapshot.weekly?.resetAt))
-                            .monospacedDigit()
                     }
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                    .allowsTightening(true)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: true, vertical: false)
                 }
             }
         }
+        .font(.caption2)
+    }
+
+    private func accountIdentity(_ account: AccountUsagePresentation) -> some View {
+        HStack(spacing: 3) {
+            Text(providerSymbol(account.provider))
+                .foregroundStyle(account.provider.accent)
+            Text(account.displayName)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .allowsTightening(true)
+        }
+    }
+
+    private func quotaRow(label: String, window: UsageWindow?) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            Text(remainingPercentage(window))
+                .fontWeight(.semibold)
+                .monospacedDigit()
+            Spacer(minLength: 2)
+            Text("↻")
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            Text(compactDateTime(window?.resetAt))
+                .monospacedDigit()
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .lineLimit(1)
+    }
+
+    private func updatedDate(_ snapshot: UsageSnapshot?) -> some View {
+        Text(compactDateTime(snapshot?.updatedAt))
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     private var inlineText: String {
-        let values = AIProvider.allCases.compactMap { provider -> String? in
-            guard let snapshot = entry.envelope?.snapshot(for: provider) else { return nil }
-            let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
-            let window = displayLimit.window(in: snapshot)
-            return "\(provider.shortName) \(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")"
+        let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
+        let values = selectedAccounts.prefix(2).map { account in
+            let window = account.snapshot.flatMap { displayLimit.window(in: $0) }
+            return "\(providerSymbol(account.provider)) \(account.displayName) \(remainingPercentage(window))"
         }
-        return values.isEmpty ? "QuotaGlance —" : values.joined(separator: " · ") + " · " + updatedTime
+        return values.isEmpty ? "QuotaGlance —" : values.joined(separator: " · ")
     }
 
     private var updatedTime: String {
-        guard let date = entry.envelope?.snapshots.map(\.updatedAt).max() else { return "—" }
-        return date.formatted(date: .omitted, time: .shortened)
+        compactDateTime(latestSnapshot(in: selectedAccounts)?.updatedAt)
     }
 
-    private var rectangularUpdatedTime: String {
-        guard let date = entry.envelope?.snapshots.map(\.updatedAt).max() else { return "—" }
-        return compactDateText(date, includesDate: false)
+    private func latestSnapshot(in accounts: [AccountUsagePresentation]) -> UsageSnapshot? {
+        accounts.compactMap(\.snapshot).max { $0.updatedAt < $1.updatedAt }
     }
 
     private func providerSymbol(_ provider: AIProvider) -> String {
@@ -149,20 +216,8 @@ private struct ComplicationView: View {
         window.map { "\($0.roundedRemainingPercentage)%" } ?? "—"
     }
 
-    private func resetTime(_ date: Date?) -> String {
-        guard let date else { return "—" }
-        var calendar = Calendar.current
-        calendar.timeZone = .current
-        return compactDateText(date, includesDate: !calendar.isDateInToday(date))
-    }
-
-    private func compactDateText(_ date: Date, includesDate: Bool) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.calendar = .current
-        formatter.timeZone = .current
-        formatter.dateFormat = includesDate ? "M/d HH:mm" : "HH:mm"
-        return formatter.string(from: date)
+    private func compactDateTime(_ date: Date?) -> String {
+        date.map { UsageFormatting.compactDateTime($0) } ?? "—"
     }
 
     private func accessibilityValue(_ snapshot: UsageSnapshot?) -> String {
@@ -171,13 +226,6 @@ private struct ComplicationView: View {
             String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
         } ?? String(localized: "not available")
         return String(localized: "remaining.updated", defaultValue: "\(remaining), updated \(updatedTime)")
-    }
-
-    private func limitShortLabel(_ limit: QuotaDisplayLimit) -> String {
-        switch limit {
-        case .fiveHour: String(localized: "5h")
-        case .weekly: String(localized: "Weekly")
-        }
     }
 
     private func limitAccessibilityLabel(_ limit: QuotaDisplayLimit) -> String {
@@ -189,47 +237,58 @@ private struct ComplicationView: View {
 }
 
 private enum ComplicationPreview {
-    private static let calendar = Calendar.current
-    private static let today = Date()
-    private static let updatedAt = calendar.date(bySettingHour: 16, minute: 25, second: 0, of: today)!
-    private static let codexWeeklyReset = calendar.date(bySettingHour: 18, minute: 30, second: 0, of: today)!
-    private static let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: today))!
-    private static let claudeWeeklyReset = calendar.nextDate(
-        after: tomorrow,
-        matching: DateComponents(month: 8, day: 30, hour: 9, minute: 0),
-        matchingPolicy: .nextTime
-    )!
-
-    static let envelope = SnapshotEnvelope(snapshots: [
+    private static let codexID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+    private static let claudeID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+    private static let updatedAt = Date(timeIntervalSince1970: 1_777_777_777)
+    private static let sessionReset = Date(timeIntervalSince1970: 1_777_795_777)
+    private static let weeklyReset = Date(timeIntervalSince1970: 1_778_382_177)
+    private static let accounts = [
+        AccountDisplayMetadata(id: codexID, provider: .codex, ordinal: 1, displayName: "sou"),
+        AccountDisplayMetadata(id: claudeID, provider: .claude, ordinal: 1, displayName: "song"),
+    ]
+    private static let snapshots = [
         UsageSnapshot(
             provider: .codex,
-            session: UsageWindow(usedPercentage: 28, resetAt: nil),
-            weekly: UsageWindow(usedPercentage: 59, resetAt: codexWeeklyReset),
+            accountIdentifier: codexID,
+            session: UsageWindow(usedPercentage: 18, resetAt: sessionReset),
+            weekly: UsageWindow(usedPercentage: 36, resetAt: weeklyReset),
             updatedAt: updatedAt
         ),
         UsageSnapshot(
             provider: .claude,
-            session: UsageWindow(usedPercentage: 52, resetAt: nil),
-            weekly: UsageWindow(usedPercentage: 37, resetAt: claudeWeeklyReset),
+            accountIdentifier: claudeID,
+            session: UsageWindow(usedPercentage: 0, resetAt: sessionReset),
+            weekly: UsageWindow(usedPercentage: 3, resetAt: weeklyReset),
             updatedAt: updatedAt
         ),
-    ])
-}
+    ]
 
-#Preview(as: .accessoryCircular) {
-    QuotaGlanceComplication()
-} timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.envelope)
+    static let singleEnvelope = SnapshotEnvelope(
+        snapshots: snapshots,
+        accounts: accounts,
+        watchAccountIdentifiers: [codexID]
+    )
+    static let dualEnvelope = SnapshotEnvelope(
+        snapshots: snapshots,
+        accounts: accounts,
+        watchAccountIdentifiers: [codexID, claudeID]
+    )
 }
 
 #Preview(as: .accessoryRectangular) {
     QuotaGlanceComplication()
 } timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.envelope)
+    ComplicationEntry(date: Date(), envelope: ComplicationPreview.singleEnvelope)
 }
 
-#Preview(as: .accessoryInline) {
+#Preview(as: .accessoryRectangular) {
     QuotaGlanceComplication()
 } timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.envelope)
+    ComplicationEntry(date: Date(), envelope: ComplicationPreview.dualEnvelope)
+}
+
+#Preview(as: .accessoryCircular) {
+    QuotaGlanceComplication()
+} timeline: {
+    ComplicationEntry(date: Date(), envelope: ComplicationPreview.singleEnvelope)
 }

@@ -40,6 +40,17 @@ struct UsageModelsTests {
         #expect(!UsageFormatting.isStale(updatedAt: now - 900, now: now))
     }
 
+    @Test("Compact date-time includes both a calendar date and a time")
+    func compactDateTime() {
+        let value = UsageFormatting.compactDateTime(
+            Date(timeIntervalSince1970: 1_777_777_777),
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+
+        #expect(value.contains("/"))
+        #expect(value.contains(":"))
+    }
+
     @Test("Legacy snapshots decode without an account identifier")
     func legacySnapshotCompatibility() throws {
         let legacyJSON = #"{"provider":"codex","session":null,"weekly":null,"updatedAt":0}"#
@@ -107,8 +118,8 @@ struct UsageModelsTests {
         let renamed = identified.replacingCustomDisplayName("  仕事用 Codex  ")
 
         #expect(renamed.displayName(fallback: "Account 2") == "仕事用 Codex")
-        #expect(identified.displayName(fallback: "Account 2") == "sou@example.com")
-        #expect(renamed.replacingCustomDisplayName("  \n").displayName(fallback: "Account 2") == "sou@example.com")
+        #expect(identified.displayName(fallback: "Account 2") == "sou")
+        #expect(renamed.replacingCustomDisplayName("  \n").displayName(fallback: "Account 2") == "sou")
 
         let anonymous = ProviderAccount(id: UUID(), provider: .codex, ordinal: 3)
         #expect(anonymous.displayName(fallback: "Account 3") == "Account 3")
@@ -134,7 +145,7 @@ struct UsageModelsTests {
             from: JSONEncoder().encode([first, second])
         )
 
-        #expect(restored.map { $0.displayName(fallback: "fallback") } == ["one@example.com", "Two Person"])
+        #expect(restored.map { $0.displayName(fallback: "fallback") } == ["one", "Two Person"])
         #expect(restored[0].replacingIdentityLabel(nil).identityLabel == "one@example.com")
     }
 
@@ -162,6 +173,117 @@ struct UsageModelsTests {
         #expect(metadata.organization.uuid == "organization-456")
     }
 
+    @Test("Claude OAuth name takes priority over its email")
+    func claudeOAuthAccountNamePriority() throws {
+        let account = try JSONDecoder().decode(ClaudeOAuthAccount.self, from: Data(#"""
+        {
+          "uuid": "account-123",
+          "name": " Song Labs ",
+          "email_address": "claude@example.com"
+        }
+        """#.utf8))
+
+        #expect(account.identityLabel == "Song Labs")
+    }
+
+    @Test("Watch selection keeps order, rejects a third account, and supports two accounts from one provider")
+    func watchAccountSelectionLimit() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let thirdID = UUID()
+        let firstTwo = WatchAccountSelection.adding(
+            secondID,
+            to: WatchAccountSelection.adding(firstID, to: [])!
+        )!
+
+        #expect(firstTwo == [firstID, secondID])
+        #expect(WatchAccountSelection.adding(thirdID, to: firstTwo) == nil)
+        #expect(WatchAccountSelection.normalized([firstID, firstID, secondID, thirdID]) == [firstID, secondID])
+    }
+
+    @Test("One-account Watch presentation keeps independent 5H and Weekly reset dates")
+    func oneWatchAccountPresentation() {
+        let accountID = UUID()
+        let sessionReset = Date(timeIntervalSince1970: 10_000)
+        let weeklyReset = Date(timeIntervalSince1970: 70_000)
+        let snapshot = UsageSnapshot(
+            provider: .codex,
+            accountIdentifier: accountID,
+            session: UsageWindow(usedPercentage: 18, resetAt: sessionReset),
+            weekly: UsageWindow(usedPercentage: 36, resetAt: weeklyReset),
+            updatedAt: Date(timeIntervalSince1970: 5_000)
+        )
+        let envelope = SnapshotEnvelope(
+            snapshots: [snapshot],
+            accounts: [AccountDisplayMetadata(
+                id: accountID,
+                provider: .codex,
+                ordinal: 1,
+                displayName: "sou"
+            )],
+            watchAccountIdentifiers: [accountID]
+        )
+
+        #expect(envelope.watchAccountPresentations.count == 1)
+        #expect(envelope.watchAccountPresentations[0].displayName == "sou")
+        #expect(envelope.watchAccountPresentations[0].snapshot?.session?.resetAt == sessionReset)
+        #expect(envelope.watchAccountPresentations[0].snapshot?.weekly?.resetAt == weeklyReset)
+        #expect(sessionReset != weeklyReset)
+    }
+
+    @Test("Two-account Watch presentation follows the cross-provider selection order")
+    func twoWatchAccountPresentation() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let thirdID = UUID()
+        let accounts = [
+            AccountDisplayMetadata(id: firstID, provider: .codex, ordinal: 1, displayName: "sou"),
+            AccountDisplayMetadata(id: secondID, provider: .codex, ordinal: 2, displayName: "account2"),
+            AccountDisplayMetadata(id: thirdID, provider: .claude, ordinal: 1, displayName: "song"),
+        ]
+        let snapshots = accounts.map { account in
+            UsageSnapshot(
+                provider: account.provider,
+                accountIdentifier: account.id,
+                session: UsageWindow(usedPercentage: 10, resetAt: nil),
+                weekly: UsageWindow(usedPercentage: 20, resetAt: nil),
+                updatedAt: .distantPast
+            )
+        }
+        let envelope = SnapshotEnvelope(
+            snapshots: snapshots,
+            accounts: accounts,
+            watchAccountIdentifiers: [thirdID, secondID]
+        )
+
+        #expect(envelope.accountPresentations.count == 3)
+        #expect(envelope.watchAccountPresentations.map(\.displayName) == ["song", "account2"])
+        #expect(envelope.watchAccountPresentations.map(\.provider) == [.claude, .codex])
+    }
+
+    @Test("An explicit empty Watch selection does not silently select an account")
+    func emptyWatchAccountSelection() {
+        let accountID = UUID()
+        let envelope = SnapshotEnvelope(
+            snapshots: [UsageSnapshot(
+                provider: .codex,
+                accountIdentifier: accountID,
+                session: nil,
+                weekly: nil,
+                updatedAt: .distantPast
+            )],
+            accounts: [AccountDisplayMetadata(
+                id: accountID,
+                provider: .codex,
+                ordinal: 1,
+                displayName: "sou"
+            )],
+            watchAccountIdentifiers: []
+        )
+
+        #expect(envelope.watchAccountPresentations.isEmpty)
+    }
+
     @Test("Shared watch cache round-trips every supported snapshot combination", arguments: [
         [AIProvider.codex],
         [AIProvider.claude],
@@ -180,7 +302,18 @@ struct UsageModelsTests {
                 updatedAt: Date(timeIntervalSince1970: Double(1_000 + index))
             )
         }
-        let envelope = SnapshotEnvelope(snapshots: snapshots, displayLimit: .weekly)
+        let account = AccountDisplayMetadata(
+            id: accountIdentifier,
+            provider: providers[0],
+            ordinal: 1,
+            displayName: "account"
+        )
+        let envelope = SnapshotEnvelope(
+            snapshots: snapshots,
+            displayLimit: .weekly,
+            accounts: [account],
+            watchAccountIdentifiers: [accountIdentifier]
+        )
         let cache = SharedWatchSnapshotCache(suiteName: suiteName)
 
         #expect(cache.isAvailable)
@@ -189,5 +322,7 @@ struct UsageModelsTests {
         #expect(cache.load() == envelope)
         #expect(cache.load()?.displayLimit == .weekly)
         #expect(cache.load()?.snapshots.first?.accountIdentifier == accountIdentifier)
+        #expect(cache.load()?.accounts == [account])
+        #expect(cache.load()?.watchAccountIdentifiers == [accountIdentifier])
     }
 }

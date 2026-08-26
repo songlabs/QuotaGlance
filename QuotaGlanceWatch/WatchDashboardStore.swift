@@ -8,13 +8,14 @@ final class WatchDashboardStore {
     private static let complicationKind = "QuotaGlanceComplication"
     private let cache: WatchSnapshotStore
     private var receiver: WatchConnectivityReceiver!
-    var snapshots: [AIProvider: UsageSnapshot]
+    var envelope: SnapshotEnvelope?
+    var isRefreshing = false
+    var refreshFailed = false
 
     init(cache: WatchSnapshotStore = WatchSnapshotStore()) {
         self.cache = cache
-        let cached = cache.load()?.snapshots ?? []
-        snapshots = Dictionary(uniqueKeysWithValues: cached.map { ($0.provider, $0) })
-        if !cached.isEmpty {
+        envelope = cache.load()
+        if envelope != nil {
             WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
         }
         receiver = WatchConnectivityReceiver()
@@ -25,17 +26,39 @@ final class WatchDashboardStore {
 
     func apply(_ envelope: SnapshotEnvelope) {
         let saved = cache.save(envelope)
-        snapshots = Dictionary(uniqueKeysWithValues: envelope.snapshots.map { ($0.provider, $0) })
+        self.envelope = envelope
+        refreshFailed = false
         if saved {
             WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
         }
     }
 
     var latestUpdatedAt: Date? {
-        snapshots.values.map(\.updatedAt).max()
+        envelope?.snapshots.map(\.updatedAt).max()
     }
 
-    var displayLimit: QuotaDisplayLimit {
-        cache.load()?.displayLimit ?? .fiveHour
+    func accountPresentations(for provider: AIProvider) -> [AccountUsagePresentation] {
+        envelope?.accountPresentations
+            .filter { $0.provider == provider }
+            .sorted { $0.ordinal < $1.ordinal } ?? []
+    }
+
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        refreshFailed = false
+        defer { isRefreshing = false }
+
+        do {
+            let response = try await receiver.requestRefresh()
+            if let envelope = response.envelope {
+                apply(envelope)
+            }
+            if !response.succeeded {
+                refreshFailed = true
+            }
+        } catch {
+            refreshFailed = true
+        }
     }
 }

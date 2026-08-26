@@ -60,6 +60,33 @@ struct SettingsView: View {
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
+                Section {
+                    ForEach(watchAccounts) { account in
+                        Button {
+                            store.toggleWatchSelection(account.id)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: account.provider == .codex ? "terminal" : "sparkles")
+                                    .foregroundStyle(account.provider.accent)
+                                Text(verbatim: "\(account.provider.displayName) / \(accountName(account))")
+                                    .foregroundStyle(QuotaGlanceTheme.primaryText)
+                                Spacer()
+                                if store.isSelectedForWatch(account.id) {
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                                }
+                            }
+                        }
+                        .disabled(!store.canToggleWatchSelection(account.id))
+                    }
+                } header: {
+                    Text(AppLocalization.string("Apple Watch display accounts", locale: locale))
+                } footer: {
+                    Text(AppLocalization.string("Choose up to 2 accounts for Apple Watch.", locale: locale))
+                }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
+
                 Section(AppLocalization.string("About", locale: locale)) {
                     LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
                     LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
@@ -153,8 +180,8 @@ struct SettingsView: View {
         if let selected = store.selectedAccountIdentifier(for: provider), !providerAccounts.isEmpty {
             Picker(
                 AppLocalization.string(
-                    "provider.display.account",
-                    defaultValue: "%@ Widget & Watch account",
+                    "provider.widget.account",
+                    defaultValue: "%@ Widget account",
                     locale: locale,
                     arguments: [provider.displayName]
                 ),
@@ -177,6 +204,10 @@ struct SettingsView: View {
             locale: locale,
             arguments: [account.ordinal]
         ))
+    }
+
+    private var watchAccounts: [ProviderAccount] {
+        AIProvider.allCases.flatMap { store.accounts(for: $0) }
     }
 
     private var version: String {

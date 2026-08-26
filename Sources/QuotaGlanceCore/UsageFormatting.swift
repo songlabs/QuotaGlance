@@ -1,6 +1,15 @@
 import Foundation
 
 public enum UsageFormatting {
+    public static func compactDateTime(_ date: Date, locale: Locale = .autoupdatingCurrent) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("MdHHmm")
+        return formatter.string(from: date)
+    }
+
     public static func updatedText(updatedAt: Date, now: Date = Date()) -> String {
         let elapsed = max(0, now.timeIntervalSince(updatedAt))
         switch elapsed {

@@ -123,8 +123,77 @@ public struct ProviderAccount: Codable, Equatable, Identifiable, Sendable {
     }
 
     public func displayName(fallback: String) -> String {
-        customDisplayName ?? identityLabel ?? fallback
+        if let customDisplayName {
+            return customDisplayName
+        }
+        guard let identityLabel else { return fallback }
+        let trimmedIdentity = identityLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let atIndex = trimmedIdentity.firstIndex(of: "@"), atIndex != trimmedIdentity.startIndex else {
+            return trimmedIdentity.isEmpty ? fallback : trimmedIdentity
+        }
+        return String(trimmedIdentity[..<atIndex])
     }
+}
+
+public struct AccountDisplayMetadata: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public let provider: AIProvider
+    public let ordinal: Int
+    public let displayName: String
+
+    public init(id: UUID, provider: AIProvider, ordinal: Int, displayName: String) {
+        self.id = id
+        self.provider = provider
+        self.ordinal = ordinal
+        self.displayName = displayName
+    }
+}
+
+public struct AccountUsagePresentation: Equatable, Identifiable, Sendable {
+    public let id: String
+    public let accountIdentifier: UUID?
+    public let provider: AIProvider
+    public let ordinal: Int
+    public let displayName: String
+    public let snapshot: UsageSnapshot?
+
+    public init(
+        id: String,
+        accountIdentifier: UUID?,
+        provider: AIProvider,
+        ordinal: Int,
+        displayName: String,
+        snapshot: UsageSnapshot?
+    ) {
+        self.id = id
+        self.accountIdentifier = accountIdentifier
+        self.provider = provider
+        self.ordinal = ordinal
+        self.displayName = displayName
+        self.snapshot = snapshot
+    }
+}
+
+public enum WatchAccountSelection {
+    public static let maximumCount = 2
+
+    public static func normalized(_ identifiers: [UUID]) -> [UUID] {
+        var seen = Set<UUID>()
+        return identifiers.filter { seen.insert($0).inserted }.prefix(maximumCount).map { $0 }
+    }
+
+    public static func adding(_ identifier: UUID, to identifiers: [UUID]) -> [UUID]? {
+        let current = normalized(identifiers)
+        if current.contains(identifier) { return current }
+        guard current.count < maximumCount else { return nil }
+        return current + [identifier]
+    }
+}
+
+public enum WatchSyncMessageKey {
+    public static let snapshotEnvelope = "snapshotEnvelope"
+    public static let refreshUsage = "refreshUsage"
+    public static let refreshSucceeded = "refreshSucceeded"
 }
 
 public struct SnapshotEnvelope: Codable, Equatable, Sendable {
@@ -133,15 +202,21 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     public let version: Int
     public let snapshots: [UsageSnapshot]
     public let displayLimit: QuotaDisplayLimit
+    public let accounts: [AccountDisplayMetadata]
+    public let watchAccountIdentifiers: [UUID]
 
     public init(
         version: Int = Self.currentVersion,
         snapshots: [UsageSnapshot],
-        displayLimit: QuotaDisplayLimit = .fiveHour
+        displayLimit: QuotaDisplayLimit = .fiveHour,
+        accounts: [AccountDisplayMetadata] = [],
+        watchAccountIdentifiers: [UUID] = []
     ) {
         self.version = version
         self.snapshots = snapshots
         self.displayLimit = displayLimit
+        self.accounts = accounts
+        self.watchAccountIdentifiers = WatchAccountSelection.normalized(watchAccountIdentifiers)
     }
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {
@@ -158,10 +233,52 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         return snapshot(for: provider)
     }
 
+    public var accountPresentations: [AccountUsagePresentation] {
+        if !accounts.isEmpty {
+            return accounts.map { account in
+                AccountUsagePresentation(
+                    id: account.id.uuidString,
+                    accountIdentifier: account.id,
+                    provider: account.provider,
+                    ordinal: account.ordinal,
+                    displayName: account.displayName,
+                    snapshot: snapshots.first {
+                        $0.provider == account.provider && $0.accountIdentifier == account.id
+                    }
+                )
+            }
+        }
+
+        return snapshots.enumerated().map { index, snapshot in
+            AccountUsagePresentation(
+                id: "legacy.\(index).\(snapshot.id)",
+                accountIdentifier: snapshot.accountIdentifier,
+                provider: snapshot.provider,
+                ordinal: index + 1,
+                displayName: snapshot.provider.displayName,
+                snapshot: snapshot
+            )
+        }
+    }
+
+    public var watchAccountPresentations: [AccountUsagePresentation] {
+        let presentations = accountPresentations
+        guard !watchAccountIdentifiers.isEmpty else {
+            return accounts.isEmpty
+                ? Array(presentations.prefix(WatchAccountSelection.maximumCount))
+                : []
+        }
+        return watchAccountIdentifiers.compactMap { identifier in
+            presentations.first { $0.accountIdentifier == identifier }
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case version
         case snapshots
         case displayLimit
+        case accounts
+        case watchAccountIdentifiers
     }
 
     public init(from decoder: Decoder) throws {
@@ -169,6 +286,15 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         version = try container.decode(Int.self, forKey: .version)
         snapshots = try container.decode([UsageSnapshot].self, forKey: .snapshots)
         displayLimit = try container.decodeIfPresent(QuotaDisplayLimit.self, forKey: .displayLimit) ?? .fiveHour
+        accounts = try container.decodeIfPresent([AccountDisplayMetadata].self, forKey: .accounts) ?? []
+        if let identifiers = try container.decodeIfPresent([UUID].self, forKey: .watchAccountIdentifiers) {
+            watchAccountIdentifiers = WatchAccountSelection.normalized(identifiers)
+        } else {
+            let legacyIdentifiers = accounts.isEmpty
+                ? snapshots.compactMap(\.accountIdentifier)
+                : accounts.map(\.id)
+            watchAccountIdentifiers = WatchAccountSelection.normalized(legacyIdentifiers)
+        }
     }
 }
 

@@ -8,6 +8,8 @@ protocol SnapshotCaching: AnyObject {
     func remove(accountIdentifier: UUID) throws
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID?
     func setSelectedAccountIdentifier(_ accountIdentifier: UUID?, for provider: AIProvider)
+    func watchAccountIdentifiers() -> [UUID]?
+    func setWatchAccountIdentifiers(_ accountIdentifiers: [UUID])
 }
 @MainActor
 final class AppGroupSnapshotCache: SnapshotCaching {
@@ -16,6 +18,7 @@ final class AppGroupSnapshotCache: SnapshotCaching {
     static let defaultProviderKey = "defaultProvider"
     static let displayLimitKey = "displayLimit"
     static let selectedAccountKeyPrefix = "selectedAccount."
+    static let watchAccountIdentifiersKey = "watchSelectedAccounts.v1"
 
     private let defaults: UserDefaults?
 
@@ -33,8 +36,13 @@ final class AppGroupSnapshotCache: SnapshotCaching {
     }
 
     func remove(accountIdentifier: UUID) throws {
-        let remaining = load()?.snapshots.filter { $0.accountIdentifier != accountIdentifier } ?? []
-        try save(SnapshotEnvelope(snapshots: remaining))
+        let envelope = load()
+        try save(SnapshotEnvelope(
+            snapshots: envelope?.snapshots.filter { $0.accountIdentifier != accountIdentifier } ?? [],
+            displayLimit: envelope?.displayLimit ?? .fiveHour,
+            accounts: envelope?.accounts.filter { $0.id != accountIdentifier } ?? [],
+            watchAccountIdentifiers: envelope?.watchAccountIdentifiers.filter { $0 != accountIdentifier } ?? []
+        ))
     }
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
@@ -48,6 +56,18 @@ final class AppGroupSnapshotCache: SnapshotCaching {
         } else {
             defaults?.removeObject(forKey: key)
         }
+    }
+
+    func watchAccountIdentifiers() -> [UUID]? {
+        guard let values = defaults?.array(forKey: Self.watchAccountIdentifiersKey) as? [String] else {
+            return nil
+        }
+        return WatchAccountSelection.normalized(values.compactMap(UUID.init(uuidString:)))
+    }
+
+    func setWatchAccountIdentifiers(_ accountIdentifiers: [UUID]) {
+        let values = WatchAccountSelection.normalized(accountIdentifiers).map(\.uuidString)
+        defaults?.set(values, forKey: Self.watchAccountIdentifiersKey)
     }
 
     var defaultProvider: AIProvider {

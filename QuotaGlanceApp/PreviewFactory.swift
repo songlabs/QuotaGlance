@@ -151,6 +151,7 @@ private final class PreviewProvider: UsageProvider {
 @MainActor
 private final class PreviewCache: SnapshotCaching {
     private var selections: [AIProvider: UUID] = [:]
+    private var watchSelection: [UUID]?
 
     func load() -> SnapshotEnvelope? { nil }
     func save(_ envelope: SnapshotEnvelope) throws {}
@@ -159,9 +160,14 @@ private final class PreviewCache: SnapshotCaching {
     func setSelectedAccountIdentifier(_ accountIdentifier: UUID?, for provider: AIProvider) {
         selections[provider] = accountIdentifier
     }
+    func watchAccountIdentifiers() -> [UUID]? { watchSelection }
+    func setWatchAccountIdentifiers(_ accountIdentifiers: [UUID]) {
+        watchSelection = WatchAccountSelection.normalized(accountIdentifiers)
+    }
 }
 
 @MainActor
 private final class PreviewWatchSync: PhoneWatchSynchronizing {
     func send(_ envelope: SnapshotEnvelope) {}
+    func setRefreshHandler(_ handler: @escaping @MainActor () async -> Bool) {}
 }

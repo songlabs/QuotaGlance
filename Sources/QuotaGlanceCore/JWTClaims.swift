@@ -21,7 +21,7 @@ public enum JWTClaims {
     public static func accountDisplayName(in token: String) -> String? {
         guard let claims = payload(in: token) else { return nil }
         let profiles = [claims, claims[openAIProfileClaim] as? [String: Any]].compactMap { $0 }
-        for key in ["name", "preferred_username", "email"] {
+        for key in ["name", "email"] {
             for profile in profiles {
                 if let value = readableString(profile[key]) { return value }
             }

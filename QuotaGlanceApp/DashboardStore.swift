@@ -105,7 +105,10 @@ final class DashboardStore {
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
     var appLanguage: AppLanguage {
-        didSet { settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey) }
+        didSet {
+            settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
+            publishSnapshots()
+        }
     }
 
     init(
@@ -165,24 +168,20 @@ final class DashboardStore {
             )
         }
 
-        let migratedSnapshots = loadedAccounts.compactMap { initialStates[$0.id]?.snapshot }
-        if !migratedSnapshots.isEmpty {
-            let migratedEnvelope = SnapshotEnvelope(
-                snapshots: migratedSnapshots,
-                displayLimit: displayLimit
-            )
-            try? cache.save(migratedEnvelope)
-            let watchSnapshots = AIProvider.allCases.compactMap { provider in
-                migratedEnvelope.snapshot(
-                    for: provider,
-                    accountIdentifier: cache.selectedAccountIdentifier(for: provider)
-                )
+        if cache.watchAccountIdentifiers() == nil {
+            let migratedSelection = AIProvider.allCases.compactMap {
+                cache.selectedAccountIdentifier(for: $0)
             }
-            watchSync.send(SnapshotEnvelope(
-                snapshots: watchSnapshots,
-                displayLimit: displayLimit
-            ))
+            if !migratedSelection.isEmpty {
+                cache.setWatchAccountIdentifiers(migratedSelection)
+            }
         }
+
+        watchSync.setRefreshHandler { [weak self] in
+            guard let self else { return false }
+            return await self.refreshAllForWatch()
+        }
+        publishSnapshots()
     }
 
     var defaultProvider: AIProvider {
@@ -220,11 +219,48 @@ final class DashboardStore {
         publishSnapshots()
     }
 
+    var watchAccountIdentifiers: [UUID] {
+        let availableIdentifiers = Set(accounts.map(\.id))
+        return (cache.watchAccountIdentifiers() ?? [])
+            .filter { availableIdentifiers.contains($0) }
+    }
+
+    func isSelectedForWatch(_ accountIdentifier: UUID) -> Bool {
+        watchAccountIdentifiers.contains(accountIdentifier)
+    }
+
+    func canToggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
+        let selection = watchAccountIdentifiers
+        if selection.contains(accountIdentifier) {
+            return true
+        }
+        return selection.count < WatchAccountSelection.maximumCount
+    }
+
+    @discardableResult
+    func toggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
+        guard accounts.contains(where: { $0.id == accountIdentifier }) else { return false }
+        let current = watchAccountIdentifiers
+        let updated: [UUID]
+        if current.contains(accountIdentifier) {
+            updated = current.filter { $0 != accountIdentifier }
+        } else {
+            guard let added = WatchAccountSelection.adding(accountIdentifier, to: current) else {
+                return false
+            }
+            updated = added
+        }
+        cache.setWatchAccountIdentifiers(updated)
+        publishSnapshots()
+        return true
+    }
+
     func renameAccount(_ accountIdentifier: UUID, name: String) {
         guard let account = accounts.first(where: { $0.id == accountIdentifier }) else { return }
         let updatedAccount = account.replacingCustomDisplayName(name)
         registry.update(updatedAccount, in: &accounts)
         states[accountIdentifier]?.account = updatedAccount
+        publishSnapshots()
     }
 
     func refreshAll(force: Bool) async {
@@ -238,7 +274,21 @@ final class DashboardStore {
         }
     }
 
+    private func refreshAllForWatch() async -> Bool {
+        let connectedAccounts = accounts.filter { states[$0.id]?.isConnected == true }
+        guard !connectedAccounts.isEmpty else { return false }
+        var succeeded = true
+        for account in connectedAccounts {
+            await refresh(account.id)
+            if states[account.id]?.error != nil {
+                succeeded = false
+            }
+        }
+        return succeeded
+    }
+
     func backfillAccountIdentityLabels() async {
+        var didUpdateAccount = false
         for account in accounts where account.identityLabel == nil && states[account.id]?.isConnected == true {
             guard let provider = providers[account.provider] else { continue }
             do {
@@ -248,9 +298,13 @@ final class DashboardStore {
                 let updatedAccount = account.replacingIdentityLabel(identityLabel)
                 registry.update(updatedAccount, in: &accounts)
                 states[account.id]?.account = updatedAccount
+                didUpdateAccount = true
             } catch {
                 // Identity enrichment is best effort and must not block usage refresh.
             }
+        }
+        if didUpdateAccount {
+            publishSnapshots()
         }
     }
 
@@ -319,6 +373,9 @@ final class DashboardStore {
             if cache.selectedAccountIdentifier(for: provider) == nil {
                 cache.setSelectedAccountIdentifier(account.id, for: provider)
             }
+            if cache.watchAccountIdentifiers() == nil {
+                cache.setWatchAccountIdentifiers([account.id])
+            }
             await refresh(account.id)
         } catch {
             if usageProvider.isConnected(accountIdentifier: pendingAccount.id) {
@@ -347,6 +404,9 @@ final class DashboardStore {
             states[accountIdentifier]?.isConnected = true
             states[accountIdentifier]?.account = updatedAccount
             states[accountIdentifier]?.isRefreshing = false
+            if cache.watchAccountIdentifiers() == nil {
+                cache.setWatchAccountIdentifiers([accountIdentifier])
+            }
             await refresh(accountIdentifier)
         } catch {
             states[accountIdentifier]?.isRefreshing = false
@@ -369,6 +429,9 @@ final class DashboardStore {
             if cache.selectedAccountIdentifier(for: account.provider) == accountIdentifier {
                 cache.setSelectedAccountIdentifier(accounts(for: account.provider).first?.id, for: account.provider)
             }
+            if let watchSelection = cache.watchAccountIdentifiers() {
+                cache.setWatchAccountIdentifiers(watchSelection.filter { $0 != accountIdentifier })
+            }
             publishSnapshots()
         } catch {
             states[accountIdentifier]?.error = PresentationError(error)
@@ -384,21 +447,29 @@ final class DashboardStore {
         let snapshots = accounts.compactMap { states[$0.id]?.snapshot }
         let envelope = SnapshotEnvelope(
             snapshots: snapshots,
-            displayLimit: displayLimit
+            displayLimit: displayLimit,
+            accounts: accounts.map { account in
+                AccountDisplayMetadata(
+                    id: account.id,
+                    provider: account.provider,
+                    ordinal: account.ordinal,
+                    displayName: accountDisplayName(account)
+                )
+            },
+            watchAccountIdentifiers: watchAccountIdentifiers
         )
         try? cache.save(envelope)
-
-        let watchSnapshots = AIProvider.allCases.compactMap { provider in
-            envelope.snapshot(
-                for: provider,
-                accountIdentifier: selectedAccountIdentifier(for: provider)
-            )
-        }
-        watchSync.send(SnapshotEnvelope(
-            snapshots: watchSnapshots,
-            displayLimit: displayLimit
-        ))
+        watchSync.send(envelope)
         WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func accountDisplayName(_ account: ProviderAccount) -> String {
+        account.displayName(fallback: AppLocalization.string(
+            "account.number",
+            defaultValue: "Account %lld",
+            locale: appLanguage.locale,
+            arguments: [account.ordinal]
+        ))
     }
 
     private func requiresReconnect(_ error: Error) -> Bool {
