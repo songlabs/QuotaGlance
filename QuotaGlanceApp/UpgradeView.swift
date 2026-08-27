@@ -155,7 +155,7 @@ struct UpgradeView: View {
             Divider()
             comparisonRow(
                 "Automatic data refresh",
-                free: .text("60 minutes fixed"),
+                free: .text("4 hours fixed"),
                 pro: .text("Customizable")
             )
         }

@@ -32,9 +32,9 @@ QuotaGlance is an informational display. It does not grant quota, change a plan,
 
 ## Refresh behavior
 
-Automatic refresh is a minimum data-age check performed when the iPhone or iPad app receives execution time, such as when the dashboard starts or the app becomes active. It is not a continuous background timer or a guarantee that a provider request will occur at a particular minute.
+Automatic refresh uses an active-scene foreground scheduler, an iOS `BGAppRefreshTask` request, and a per-account data-age check. The selected interval determines when QuotaGlance requests to become eligible for background execution; iOS controls whether and when that execution opportunity occurs, so an actual background refresh may happen later than the selected interval or may not run when system Background App Refresh is unavailable or disabled.
 
-Widget and complication timeline scheduling is controlled by iOS, iPadOS, watchOS, and WidgetKit. Watch data delivery also depends on Apple's WatchConnectivity scheduling and device conditions. A requested timeline interval, manual refresh, or Watch refresh request does not guarantee an immediate provider response or an exact update time. Cached data may continue to appear after a network, authorization, provider, or delivery failure.
+Foreground automatic scheduling is also subject to app lifecycle, connectivity, provider availability, and device conditions. Widget and complication timeline scheduling is controlled by iOS, iPadOS, watchOS, and WidgetKit. Watch data delivery also depends on Apple's WatchConnectivity scheduling and device conditions. A requested background interval, timeline interval, manual refresh, or Watch refresh request does not guarantee an immediate provider response or an exact update time. Cached data may continue to appear after a network, authorization, provider, or delivery failure.
 
 ## Trial and Lifetime Pro
 

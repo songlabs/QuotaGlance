@@ -497,118 +497,195 @@ struct UsageModelsTests {
 
 @Suite("Refresh interval")
 struct RefreshIntervalTests {
-    @Test("Default is 60 minutes")
+    @Test("All discrete options map to the expected durations")
+    func optionDurations() {
+        #expect(AutomaticRefreshInterval.allCases == [
+            .disabled,
+            .fifteenMinutes,
+            .thirtyMinutes,
+            .oneHour,
+            .twoHours,
+            .fourHours,
+        ])
+        #expect(AutomaticRefreshInterval.allCases.map(\.timeInterval) == [
+            nil,
+            Optional<TimeInterval>(15 * 60),
+            Optional<TimeInterval>(30 * 60),
+            Optional<TimeInterval>(60 * 60),
+            Optional<TimeInterval>(2 * 60 * 60),
+            Optional<TimeInterval>(4 * 60 * 60),
+        ])
+    }
+
+    @Test("Default is four hours")
     func defaultInterval() {
-        let interval = RefreshInterval.defaultInterval
+        let interval = AutomaticRefreshInterval.defaultInterval
 
-        #expect(interval.value == 60)
-        #expect(interval.unit == .minute)
-        #expect(interval.timeInterval == Optional<TimeInterval>(3_600))
+        #expect(interval == .fourHours)
+        #expect(interval.timeInterval == Optional<TimeInterval>(14_400))
     }
 
-    @Test("Minute and hour ranges match settings pickers")
-    func validRanges() {
-        #expect(Array(RefreshIntervalUnit.minute.valueRange) == Array(0...60))
-        #expect(Array(RefreshIntervalUnit.hour.valueRange) == Array(0...23))
-    }
-
-    @Test("Free is fixed at 60 minutes while Trial and Pro use the stored interval")
+    @Test("Free is fixed at four hours while Trial and Pro use the stored interval")
     func effectiveIntervalFollowsAccessLevel() {
-        let stored = RefreshInterval(value: 15, unit: .minute)
+        let stored = AutomaticRefreshInterval.fifteenMinutes
 
         #expect(stored.effective(for: .free) == .fixedFreeInterval)
-        #expect(stored.effective(for: .free).timeInterval == Optional<TimeInterval>(3_600))
+        #expect(stored.effective(for: .free).timeInterval == Optional<TimeInterval>(14_400))
         #expect(stored.effective(for: .trial) == stored)
         #expect(stored.effective(for: .pro) == stored)
-    }
 
-    @Test("Changing to hours clamps an invalid minute value")
-    func unitChangeClampsValue() {
-        let minutes = RefreshInterval(value: 59, unit: .minute)
-        let hours = minutes.replacingUnit(.hour)
-
-        #expect(hours.value == 23)
-        #expect(hours.unit == .hour)
-        #expect(hours.timeInterval == Optional<TimeInterval>(82_800))
-    }
-
-    @Test("Zero disables automatic refresh for both units")
-    func zeroDisablesAutomaticRefresh() {
-        let now = Date(timeIntervalSince1970: 10_000)
-
-        for unit in RefreshIntervalUnit.allCases {
-            let interval = RefreshInterval(value: 0, unit: unit)
-            #expect(interval.timeInterval == nil)
-            #expect(!interval.shouldRefresh(lastSuccessfulUpdate: nil, now: now))
-            #expect(!interval.shouldRefresh(lastSuccessfulUpdate: .distantPast, now: now))
-            #expect(interval.shouldRefresh(lastSuccessfulUpdate: nil, force: true, now: now))
-        }
+        let disabled = AutomaticRefreshInterval.disabled
+        #expect(disabled.effective(for: .free) == .fourHours)
+        #expect(disabled.effective(for: .trial) == .disabled)
+        #expect(disabled.effective(for: .pro) == .disabled)
     }
 
     @Test("Automatic refresh uses the successful-update boundary")
     func refreshBoundary() {
-        let interval = RefreshInterval(value: 10, unit: .minute)
+        let interval = AutomaticRefreshInterval.fifteenMinutes
         let lastUpdate = Date(timeIntervalSince1970: 1_000)
 
         #expect(!interval.shouldRefresh(
             lastSuccessfulUpdate: lastUpdate,
-            now: lastUpdate.addingTimeInterval(599)
+            now: lastUpdate.addingTimeInterval(899)
         ))
         #expect(interval.shouldRefresh(
             lastSuccessfulUpdate: lastUpdate,
-            now: lastUpdate.addingTimeInterval(600)
+            now: lastUpdate.addingTimeInterval(900)
         ))
         #expect(interval.shouldRefresh(lastSuccessfulUpdate: nil, now: lastUpdate))
     }
 
-    @Test("Two hours converts to seconds and gates refresh")
-    func hoursRefreshBoundary() {
-        let interval = RefreshInterval(value: 2, unit: .hour)
-        let lastUpdate = Date(timeIntervalSince1970: 1_000)
+    @Test("A failed automatic attempt prevents a tight retry loop")
+    func automaticAttemptBoundary() {
+        let interval = AutomaticRefreshInterval.fifteenMinutes
+        let staleUpdate = Date(timeIntervalSince1970: 1_000)
+        let lastAttempt = Date(timeIntervalSince1970: 10_000)
 
-        #expect(interval.timeInterval == Optional<TimeInterval>(7_200))
         #expect(!interval.shouldRefresh(
-            lastSuccessfulUpdate: lastUpdate,
-            now: lastUpdate.addingTimeInterval(7_199)
+            lastSuccessfulUpdate: staleUpdate,
+            lastRefreshAttempt: lastAttempt,
+            now: lastAttempt.addingTimeInterval(899)
         ))
         #expect(interval.shouldRefresh(
-            lastSuccessfulUpdate: lastUpdate,
-            now: lastUpdate.addingTimeInterval(7_200)
+            lastSuccessfulUpdate: staleUpdate,
+            lastRefreshAttempt: lastAttempt,
+            now: lastAttempt.addingTimeInterval(900)
         ))
     }
 
-    @Test("Preferences default, persist, and normalize values")
+    @Test("Foreground and background schedule dates use the selected interval")
+    func scheduleDates() {
+        let now = Date(timeIntervalSince1970: 20_000)
+        let lastUpdate = now.addingTimeInterval(-5 * 60)
+
+        #expect(AutomaticRefreshInterval.fifteenMinutes.nextRefreshDate(
+            lastSuccessfulUpdate: lastUpdate,
+            now: now
+        ) == now.addingTimeInterval(10 * 60))
+        #expect(AutomaticRefreshInterval.fifteenMinutes.earliestBackgroundBeginDate(
+            from: now
+        ) == now.addingTimeInterval(15 * 60))
+        #expect(AutomaticRefreshInterval.disabled.nextRefreshDate(
+            lastSuccessfulUpdate: nil,
+            now: now
+        ) == nil)
+        #expect(AutomaticRefreshInterval.disabled.earliestBackgroundBeginDate(from: now) == nil)
+        #expect(AutomaticRefreshInterval.disabled.shouldRefresh(
+            lastSuccessfulUpdate: nil,
+            force: true,
+            now: now
+        ))
+    }
+
+    @Test("Legacy minute and hour values migrate without shortening the interval")
+    func legacyMigration() {
+        let minuteCases: [(Int, AutomaticRefreshInterval)] = [
+            (0, .disabled),
+            (5, .fifteenMinutes),
+            (15, .fifteenMinutes),
+            (20, .thirtyMinutes),
+            (45, .oneHour),
+            (90, .twoHours),
+            (120, .twoHours),
+            (180, .fourHours),
+            (300, .fourHours),
+        ]
+        for (value, expected) in minuteCases {
+            #expect(AutomaticRefreshInterval.migratingLegacy(value: value, unit: "minute") == expected)
+        }
+
+        let hourCases: [(Int, AutomaticRefreshInterval)] = [
+            (0, .disabled),
+            (1, .oneHour),
+            (2, .twoHours),
+            (3, .fourHours),
+            (4, .fourHours),
+            (8, .fourHours),
+        ]
+        for (value, expected) in hourCases {
+            #expect(AutomaticRefreshInterval.migratingLegacy(value: value, unit: "hour") == expected)
+        }
+    }
+
+    @Test("Preferences default, persist, and migrate only when the new format is absent")
     func preferencesPersistence() {
         let suiteName = "RefreshIntervalTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        #expect(RefreshIntervalPreferences.load(from: defaults) == .defaultInterval)
+        #expect(AutomaticRefreshPreferences.load(from: defaults) == .fourHours)
+        #expect(defaults.string(forKey: AutomaticRefreshPreferences.intervalKey) == AutomaticRefreshInterval.fourHours.rawValue)
 
-        let saved = RefreshInterval(value: 15, unit: .minute)
-        RefreshIntervalPreferences.save(saved, to: defaults)
-        #expect(RefreshIntervalPreferences.load(from: defaults) == saved)
+        AutomaticRefreshPreferences.save(.fifteenMinutes, to: defaults)
+        #expect(AutomaticRefreshPreferences.load(from: defaults) == .fifteenMinutes)
+        #expect(AutomaticRefreshPreferences.load(from: defaults).effective(for: .free) == .fourHours)
+        #expect(AutomaticRefreshPreferences.load(from: defaults).effective(for: .pro) == .fifteenMinutes)
 
-        let storedBeforeAccessChange = RefreshIntervalPreferences.load(from: defaults)
-        #expect(storedBeforeAccessChange.effective(for: .free) == .fixedFreeInterval)
-        #expect(RefreshIntervalPreferences.load(from: defaults) == saved)
-        #expect(storedBeforeAccessChange.effective(for: .pro) == saved)
+        defaults.removeObject(forKey: AutomaticRefreshPreferences.intervalKey)
+        defaults.set(90, forKey: AutomaticRefreshPreferences.legacyValueKey)
+        defaults.set("minute", forKey: AutomaticRefreshPreferences.legacyUnitKey)
+        #expect(AutomaticRefreshPreferences.load(from: defaults) == .twoHours)
+        #expect(defaults.string(forKey: AutomaticRefreshPreferences.intervalKey) == AutomaticRefreshInterval.twoHours.rawValue)
 
-        defaults.set(120, forKey: RefreshIntervalPreferences.valueKey)
-        defaults.set(RefreshIntervalUnit.minute.rawValue, forKey: RefreshIntervalPreferences.unitKey)
-        let savedTwoHoursInMinutes = RefreshIntervalPreferences.load(from: defaults)
-        #expect(savedTwoHoursInMinutes.value == 120)
-        #expect(savedTwoHoursInMinutes.unit == .minute)
-        #expect(savedTwoHoursInMinutes.timeInterval == Optional<TimeInterval>(7_200))
-        #expect(savedTwoHoursInMinutes.effective(for: .free) == .fixedFreeInterval)
-        #expect(savedTwoHoursInMinutes.effective(for: .pro) == savedTwoHoursInMinutes)
-        #expect(defaults.integer(forKey: RefreshIntervalPreferences.valueKey) == 120)
+        defaults.set(5, forKey: AutomaticRefreshPreferences.legacyValueKey)
+        #expect(AutomaticRefreshPreferences.load(from: defaults) == .twoHours)
 
-        defaults.set(59, forKey: RefreshIntervalPreferences.valueKey)
-        defaults.set(RefreshIntervalUnit.hour.rawValue, forKey: RefreshIntervalPreferences.unitKey)
-        #expect(RefreshIntervalPreferences.load(from: defaults) == RefreshInterval(value: 23, unit: .hour))
+        AutomaticRefreshPreferences.save(.disabled, to: defaults)
+        #expect(AutomaticRefreshPreferences.load(from: defaults).effective(for: .free) == .fourHours)
+        #expect(AutomaticRefreshPreferences.load(from: defaults) == .disabled)
+        #expect(AutomaticRefreshPreferences.load(from: defaults).effective(for: .pro) == .disabled)
+    }
 
-        defaults.removeObject(forKey: RefreshIntervalPreferences.valueKey)
-        #expect(RefreshIntervalPreferences.load(from: defaults) == .defaultInterval)
+    @Test("Other Pro-only selections keep stored values while Free uses fixed defaults")
+    func otherProOnlySelections() {
+        let storedQuota = QuotaDisplayLimit.weekly
+        #expect(storedQuota.effective(for: .free) == .fiveHour)
+        #expect(storedQuota.effective(for: .trial) == .weekly)
+        #expect(storedQuota.effective(for: .pro) == .weekly)
+
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        #expect(WatchAccountSelection.initial(
+            accountIdentifiers: [first, second, third],
+            legacySelectedAccountIdentifiers: []
+        ) == [first])
+        let storedWatchSelection = WatchAccountSelection.initial(
+            accountIdentifiers: [first, second, third],
+            legacySelectedAccountIdentifiers: [second, third]
+        )
+        #expect(storedWatchSelection == [second, third])
+        #expect(WatchRefreshScope.accountIdentifiers(
+            accounts: [first, second, third],
+            selectedAccountIdentifiers: storedWatchSelection,
+            hasProFeatures: false
+        ) == [first])
+        #expect(storedWatchSelection == [second, third])
+        #expect(WatchRefreshScope.accountIdentifiers(
+            accounts: [first, second, third],
+            selectedAccountIdentifiers: storedWatchSelection,
+            hasProFeatures: true
+        ) == [second, third])
     }
 }

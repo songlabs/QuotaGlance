@@ -79,4 +79,69 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertTrue(SettingsUpgradeRouting.shouldPresentMembership(for: .trial))
         XCTAssertFalse(SettingsUpgradeRouting.shouldPresentMembership(for: .pro))
     }
+
+    func testAutomaticRefreshOptionsAndEntitlements() {
+        XCTAssertEqual(AutomaticRefreshInterval.allCases.map(\.timeInterval), [
+            nil,
+            15 * 60,
+            30 * 60,
+            60 * 60,
+            2 * 60 * 60,
+            4 * 60 * 60,
+        ])
+        XCTAssertEqual(AutomaticRefreshInterval.defaultInterval, .fourHours)
+        XCTAssertEqual(AutomaticRefreshInterval.fifteenMinutes.effective(for: .free), .fourHours)
+        XCTAssertEqual(AutomaticRefreshInterval.fifteenMinutes.effective(for: .trial), .fifteenMinutes)
+        XCTAssertEqual(AutomaticRefreshInterval.fifteenMinutes.effective(for: .pro), .fifteenMinutes)
+        XCTAssertEqual(AutomaticRefreshInterval.disabled.effective(for: .free), .fourHours)
+        XCTAssertEqual(AutomaticRefreshInterval.disabled.effective(for: .pro), .disabled)
+    }
+
+    func testLegacyAutomaticRefreshMigration() {
+        let minuteCases: [(Int, AutomaticRefreshInterval)] = [
+            (0, .disabled),
+            (5, .fifteenMinutes),
+            (15, .fifteenMinutes),
+            (20, .thirtyMinutes),
+            (45, .oneHour),
+            (90, .twoHours),
+            (120, .twoHours),
+            (180, .fourHours),
+            (300, .fourHours),
+        ]
+        for (value, expected) in minuteCases {
+            XCTAssertEqual(
+                AutomaticRefreshInterval.migratingLegacy(value: value, unit: "minute"),
+                expected
+            )
+        }
+    }
+
+    func testOtherProOnlySelectionsPreserveStoredValues() {
+        XCTAssertEqual(QuotaDisplayLimit.weekly.effective(for: .free), .fiveHour)
+        XCTAssertEqual(QuotaDisplayLimit.weekly.effective(for: .trial), .weekly)
+        XCTAssertEqual(QuotaDisplayLimit.weekly.effective(for: .pro), .weekly)
+
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        let stored = [second, third]
+        XCTAssertEqual(
+            WatchRefreshScope.accountIdentifiers(
+                accounts: [first, second, third],
+                selectedAccountIdentifiers: stored,
+                hasProFeatures: false
+            ),
+            [first]
+        )
+        XCTAssertEqual(stored, [second, third])
+        XCTAssertEqual(
+            WatchRefreshScope.accountIdentifiers(
+                accounts: [first, second, third],
+                selectedAccountIdentifiers: stored,
+                hasProFeatures: true
+            ),
+            [second, third]
+        )
+    }
 }

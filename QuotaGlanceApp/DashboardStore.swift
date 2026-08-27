@@ -105,12 +105,18 @@ final class DashboardStore {
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
     var isShowingUpgrade = false
-    private(set) var refreshInterval: RefreshInterval {
+    private(set) var refreshInterval: AutomaticRefreshInterval {
         didSet {
-            RefreshIntervalPreferences.save(refreshInterval, to: settingsDefaults)
+            AutomaticRefreshPreferences.save(refreshInterval, to: settingsDefaults)
+            restartForegroundAutomaticRefresh()
+            automaticRefreshConfigurationDidChange?()
         }
     }
     private(set) var watchAccountIdentifiers: [UUID]
+    private var lastRefreshAttempts: [UUID: Date] = [:]
+    private var foregroundAutomaticRefreshTask: Task<Void, Never>?
+    private var isForegroundAutomaticRefreshActive = false
+    var automaticRefreshConfigurationDidChange: (() -> Void)?
     var appLanguage: AppLanguage {
         didSet {
             settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
@@ -135,7 +141,7 @@ final class DashboardStore {
         self.watchSync = watchSync
         self.purchaseManager = purchaseManager
         self.settingsDefaults = settingsDefaults
-        refreshInterval = RefreshIntervalPreferences.load(from: settingsDefaults)
+        refreshInterval = AutomaticRefreshPreferences.load(from: settingsDefaults)
         appLanguage = settingsDefaults.string(forKey: AppLanguage.defaultsKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
 
@@ -170,6 +176,9 @@ final class DashboardStore {
         }
         states = initialStates
 
+        let legacyWatchSelection = AIProvider.allCases.compactMap {
+            cache.selectedAccountIdentifier(for: $0)
+        }
         for provider in AIProvider.allCases
         where cache.selectedAccountIdentifier(for: provider) == nil {
             cache.setSelectedAccountIdentifier(
@@ -179,11 +188,12 @@ final class DashboardStore {
         }
 
         if cache.watchAccountIdentifiers() == nil {
-            let migratedSelection = AIProvider.allCases.compactMap {
-                cache.selectedAccountIdentifier(for: $0)
-            }
-            if !migratedSelection.isEmpty {
-                cache.setWatchAccountIdentifiers(migratedSelection)
+            let initialWatchSelection = WatchAccountSelection.initial(
+                accountIdentifiers: loadedAccounts.map(\.id),
+                legacySelectedAccountIdentifiers: legacyWatchSelection
+            )
+            if !initialWatchSelection.isEmpty {
+                cache.setWatchAccountIdentifiers(initialWatchSelection)
             }
         }
         let availableIdentifiers = Set(loadedAccounts.map(\.id))
@@ -195,7 +205,10 @@ final class DashboardStore {
             return await self.refreshAllForWatch()
         }
         purchaseManager.entitlementDidChange = { [weak self] in
-            self?.publishSnapshots()
+            guard let self else { return }
+            self.publishSnapshots()
+            self.restartForegroundAutomaticRefresh()
+            self.automaticRefreshConfigurationDidChange?()
         }
     }
 
@@ -207,12 +220,16 @@ final class DashboardStore {
         }
     }
 
-    var displayLimit: QuotaDisplayLimit {
+    private(set) var displayLimit: QuotaDisplayLimit {
         get { (cache as? AppGroupSnapshotCache)?.displayLimit ?? .fiveHour }
         set {
             (cache as? AppGroupSnapshotCache)?.displayLimit = newValue
             publishSnapshots()
         }
+    }
+
+    var effectiveDisplayLimit: QuotaDisplayLimit {
+        displayLimit.effective(for: accessLevel)
     }
 
     func accounts(for provider: AIProvider) -> [ProviderAccount] {
@@ -225,17 +242,44 @@ final class DashboardStore {
 
     var accessLevel: AccessLevel { purchaseManager.accessLevel }
     var canAddAccount: Bool { purchaseManager.hasProFeatures || accounts.isEmpty }
-    var effectiveRefreshInterval: RefreshInterval { refreshInterval.effective(for: accessLevel) }
+    var effectiveRefreshInterval: AutomaticRefreshInterval { refreshInterval.effective(for: accessLevel) }
+    var effectiveWatchAccountIdentifiers: [UUID] {
+        purchaseManager.hasProFeatures
+            ? watchAccountIdentifiers
+            : accounts.first.map { [$0.id] } ?? []
+    }
 
     func requirePro() { isShowingUpgrade = true }
 
-    func updateRefreshInterval(_ interval: RefreshInterval) {
+    func updateRefreshInterval(_ interval: AutomaticRefreshInterval) {
         guard purchaseManager.hasProFeatures else { return }
         refreshInterval = interval
     }
 
+    func updateDisplayLimit(_ limit: QuotaDisplayLimit) {
+        guard purchaseManager.hasProFeatures else { return }
+        displayLimit = limit
+    }
+
+    func startForegroundAutomaticRefresh() {
+        isForegroundAutomaticRefreshActive = true
+        restartForegroundAutomaticRefresh()
+    }
+
+    func stopForegroundAutomaticRefresh() {
+        isForegroundAutomaticRefreshActive = false
+        foregroundAutomaticRefreshTask?.cancel()
+        foregroundAutomaticRefreshTask = nil
+    }
+
     func refreshAccess(previousAccessLevel: AccessLevel? = nil) async {
         await purchaseManager.refreshEntitlements()
+    }
+
+    func performBackgroundAutomaticRefresh() async -> Bool {
+        await purchaseManager.refreshEntitlements()
+        guard !Task.isCancelled else { return false }
+        return await refreshAll(force: false)
     }
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
@@ -254,7 +298,7 @@ final class DashboardStore {
     }
 
     func isSelectedForWatch(_ accountIdentifier: UUID) -> Bool {
-        watchAccountIdentifiers.contains(accountIdentifier)
+        effectiveWatchAccountIdentifiers.contains(accountIdentifier)
     }
 
     func canToggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
@@ -296,19 +340,29 @@ final class DashboardStore {
         publishSnapshots()
     }
 
-    func refreshAll(force: Bool) async {
+    @discardableResult
+    func refreshAll(force: Bool) async -> Bool {
         let now = Date()
         let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        var succeeded = true
         for account in activeAccounts where states[account.id]?.isConnected == true {
             if !effectiveRefreshInterval.shouldRefresh(
                 lastSuccessfulUpdate: states[account.id]?.snapshot?.updatedAt,
+                lastRefreshAttempt: lastRefreshAttempts[account.id],
                 force: force,
                 now: now
             ) {
                 continue
             }
-            await refresh(account.id)
+            if states[account.id]?.isRefreshing == true {
+                continue
+            }
+            if !(await refresh(account.id, reschedulesForegroundAutomaticRefresh: false)) {
+                succeeded = false
+            }
         }
+        restartForegroundAutomaticRefresh()
+        return succeeded
     }
 
     private func refreshAllForWatch() async -> Bool {
@@ -323,11 +377,11 @@ final class DashboardStore {
         guard !connectedAccounts.isEmpty else { return false }
         var succeeded = true
         for account in connectedAccounts {
-            await refresh(account.id)
-            if states[account.id]?.error != nil {
+            if !(await refresh(account.id, reschedulesForegroundAutomaticRefresh: false)) {
                 succeeded = false
             }
         }
+        restartForegroundAutomaticRefresh()
         return succeeded
     }
 
@@ -352,28 +406,44 @@ final class DashboardStore {
         }
     }
 
-    func refresh(_ accountIdentifier: UUID) async {
+    @discardableResult
+    func refresh(
+        _ accountIdentifier: UUID,
+        reschedulesForegroundAutomaticRefresh: Bool = true
+    ) async -> Bool {
         guard let account = accounts.first(where: { $0.id == accountIdentifier }),
               let usageProvider = providers[account.provider],
               states[accountIdentifier]?.isConnected == true,
               states[accountIdentifier]?.isRefreshing == false
-        else { return }
+        else { return false }
 
         states[accountIdentifier]?.isRefreshing = true
         states[accountIdentifier]?.error = nil
+        lastRefreshAttempts[accountIdentifier] = Date()
         defer { states[accountIdentifier]?.isRefreshing = false }
 
         do {
             let snapshot = try await usageProvider.refreshUsage(accountIdentifier: accountIdentifier)
                 .assigned(to: accountIdentifier)
+            try Task.checkCancellation()
             states[accountIdentifier]?.snapshot = snapshot
             states[accountIdentifier]?.error = nil
             publishSnapshots()
+            if reschedulesForegroundAutomaticRefresh {
+                restartForegroundAutomaticRefresh()
+            }
+            return true
+        } catch is CancellationError {
+            return false
         } catch {
             if requiresReconnect(error) {
                 states[accountIdentifier]?.isConnected = false
             }
             states[accountIdentifier]?.error = PresentationError(error)
+            if reschedulesForegroundAutomaticRefresh {
+                restartForegroundAutomaticRefresh()
+            }
+            return false
         }
     }
 
@@ -474,6 +544,7 @@ final class DashboardStore {
             try await usageProvider.disconnect(accountIdentifier: accountIdentifier)
             registry.remove(account, from: &accounts)
             states[accountIdentifier] = nil
+            lastRefreshAttempts[accountIdentifier] = nil
             try cache.remove(accountIdentifier: accountIdentifier)
 
             if cache.selectedAccountIdentifier(for: account.provider) == accountIdentifier {
@@ -507,7 +578,7 @@ final class DashboardStore {
         let snapshots = entitledAccounts.compactMap { states[$0.id]?.snapshot }
         let envelope = SnapshotEnvelope(
             snapshots: snapshots,
-            displayLimit: purchaseManager.hasProFeatures ? displayLimit : .fiveHour,
+            displayLimit: effectiveDisplayLimit,
             accounts: entitledAccounts.map { account in
                 AccountDisplayMetadata(
                     id: account.id,
@@ -516,9 +587,7 @@ final class DashboardStore {
                     displayName: accountDisplayName(account)
                 )
             },
-            watchAccountIdentifiers: purchaseManager.hasProFeatures
-                ? watchAccountIdentifiers
-                : entitledAccounts.first.map { [$0.id] } ?? [],
+            watchAccountIdentifiers: effectiveWatchAccountIdentifiers,
             accessLevel: accessLevel,
             proAccessExpiresAt: accessLevel == .trial ? purchaseManager.trialEndsAt : nil
         )
@@ -539,5 +608,43 @@ final class DashboardStore {
     private func requiresReconnect(_ error: Error) -> Bool {
         guard let error = error as? UsageProviderError else { return false }
         return error == .tokenExpired || error == .noAccount
+    }
+
+    private func restartForegroundAutomaticRefresh(now: Date = Date()) {
+        foregroundAutomaticRefreshTask?.cancel()
+        foregroundAutomaticRefreshTask = nil
+        guard isForegroundAutomaticRefreshActive,
+              purchaseManager.isEntitlementLoaded,
+              let nextRefreshDate = nextForegroundAutomaticRefreshDate(now: now)
+        else { return }
+
+        let delay = max(0, nextRefreshDate.timeIntervalSince(now))
+        foregroundAutomaticRefreshTask = Task { @MainActor [weak self] in
+            do {
+                if delay > 0 {
+                    try await Task.sleep(for: .seconds(delay))
+                }
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+            guard let self else { return }
+            self.foregroundAutomaticRefreshTask = nil
+            await self.refreshAll(force: false)
+        }
+    }
+
+    private func nextForegroundAutomaticRefreshDate(now: Date) -> Date? {
+        let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        return activeAccounts
+            .filter { states[$0.id]?.isConnected == true }
+            .compactMap { account in
+                effectiveRefreshInterval.nextRefreshDate(
+                    lastSuccessfulUpdate: states[account.id]?.snapshot?.updatedAt,
+                    lastRefreshAttempt: lastRefreshAttempts[account.id],
+                    now: now
+                )
+            }
+            .min()
     }
 }

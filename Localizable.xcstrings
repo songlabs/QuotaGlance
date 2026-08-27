@@ -1,38 +1,58 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "0 = Automatic refresh off": {
+    "Off": {
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 = Automatic refresh off"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 = 关闭自动更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 = 關閉自動更新"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 = 自動更新しない"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "0 = 자동 새로 고침 끄기"
-          }
-        }
+        "en": { "stringUnit": { "state": "translated", "value": "Off" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "オフ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "끔" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "关闭" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "關閉" } }
+      }
+    },
+    "15 Minutes": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "15 Minutes" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "15分" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "15분" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "15 分钟" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "15 分鐘" } }
+      }
+    },
+    "30 Minutes": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "30 Minutes" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "30分" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "30분" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "30 分钟" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "30 分鐘" } }
+      }
+    },
+    "1 Hour": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "1 Hour" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "1時間" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "1시간" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "1 小时" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "1 小時" } }
+      }
+    },
+    "2 Hours": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "2 Hours" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "2時間" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "2시간" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "2 小时" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "2 小時" } }
+      }
+    },
+    "4 Hours": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "4 Hours" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "4時間" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "4시간" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "4 小时" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "4 小時" } }
       }
     },
     "5 hour remaining": {
@@ -4489,36 +4509,36 @@
         }
       }
     },
-    "60 minutes fixed": {
+    "4 hours fixed": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "60 min fixed"
+            "value": "4 hours fixed"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "60 分钟固定"
+            "value": "4 小时固定"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "60 分鐘固定"
+            "value": "4 小時固定"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "60分固定"
+            "value": "4時間固定"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "60분 고정"
+            "value": "4시간 고정"
           }
         }
       }
@@ -4652,38 +4672,31 @@
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "使用條款" } }
       }
     },
-    "Free refresh interval is fixed at 60 minutes": {
+    "Free refresh interval is fixed at 4 hours.": {
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Free refresh interval is fixed at 60 minutes"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Free 自动刷新间隔固定为 60 分钟"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Free 自動更新間隔固定為 60 分鐘"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Freeの自動更新間隔は60分固定です"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Free 자동 새로 고침 간격은 60분으로 고정됩니다"
-          }
-        }
+        "en": { "stringUnit": { "state": "translated", "value": "Free refresh interval is fixed at 4 hours." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Freeの自動更新間隔は4時間固定です。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Free 자동 새로 고침 간격은 4시간으로 고정됩니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Free 自动刷新间隔固定为 4 小时。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Free 自動更新間隔固定為 4 小時。" } }
+      }
+    },
+    "Background refresh timing is determined by iOS and may occur later than the selected interval.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Background refresh timing is determined by iOS and may occur later than the selected interval." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "バックグラウンド更新のタイミングはiOSによって決まり、実際の更新は選択した間隔より遅くなる場合があります。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "백그라운드 새로 고침 시점은 iOS에서 결정하며 실제 새로 고침은 선택한 간격보다 늦을 수 있습니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "后台刷新时间由 iOS 决定，实际刷新可能晚于所选间隔。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "背景更新時間由 iOS 決定，實際更新可能晚於所選間隔。" } }
+      }
+    },
+    "Free uses the first account. Trial and Pro can choose up to 2 accounts.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Free uses the first account. Trial and Pro can choose up to 2 accounts." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Freeでは最初のアカウントを使用します。TrialとProでは最大2個のアカウントを選択できます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Free에서는 첫 번째 계정을 사용합니다. Trial과 Pro에서는 최대 2개 계정을 선택할 수 있습니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Free 使用第一个账号。Trial 和 Pro 最多可选择 2 个账号。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Free 使用第一個帳戶。Trial 和 Pro 最多可選擇 2 個帳戶。" } }
       }
     }
   },

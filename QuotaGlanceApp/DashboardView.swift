@@ -55,6 +55,9 @@ struct DashboardView: View {
             await store.refreshAccess(previousAccessLevel: previousAccessLevel)
             await store.backfillAccountIdentityLabels()
             await store.refreshAll(force: false)
+            if scenePhase == .active {
+                store.startForegroundAutomaticRefresh()
+            }
         }
         .task(id: store.accessLevel) {
             guard runsStartupTasks else { return }
@@ -67,10 +70,15 @@ struct DashboardView: View {
             }
         }
         .onChange(of: scenePhase) { _, newValue in
-            guard runsStartupTasks, newValue == .active else { return }
+            guard runsStartupTasks else { return }
+            guard newValue == .active else {
+                store.stopForegroundAutomaticRefresh()
+                return
+            }
             Task {
                 await store.refreshAccess()
                 await store.refreshAll(force: false)
+                store.startForegroundAutomaticRefresh()
             }
         }
     }

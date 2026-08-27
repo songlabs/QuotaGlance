@@ -36,6 +36,10 @@ public enum QuotaDisplayLimit: String, Codable, CaseIterable, Equatable, Sendabl
     case fiveHour
     case weekly
 
+    public func effective(for accessLevel: AccessLevel) -> Self {
+        accessLevel.hasProFeatures ? self : .fiveHour
+    }
+
     public func window(in snapshot: UsageSnapshot) -> UsageWindow? {
         switch self {
         case .fiveHour: snapshot.session
@@ -69,96 +73,114 @@ public enum EntitlementPublicationPolicy {
     }
 }
 
-public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, Sendable {
-    case minute
-    case hour
+public enum AutomaticRefreshInterval: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case disabled
+    case fifteenMinutes
+    case thirtyMinutes
+    case oneHour
+    case twoHours
+    case fourHours
+
+    public static let fixedFreeInterval: Self = .fourHours
+    public static let defaultInterval: Self = .fourHours
 
     public var id: String { rawValue }
 
-    public var valueRange: ClosedRange<Int> {
-        switch self {
-        case .minute: 0...60
-        case .hour: 0...23
-        }
-    }
-
-    fileprivate var secondsPerUnit: TimeInterval {
-        switch self {
-        case .minute: 60
-        case .hour: 60 * 60
-        }
-    }
-
-    fileprivate func clamped(_ value: Int) -> Int {
-        min(max(value, valueRange.lowerBound), valueRange.upperBound)
-    }
-}
-
-public struct RefreshInterval: Equatable, Sendable {
-    public static let fixedFreeInterval = RefreshInterval(value: 60, unit: .minute)
-    public static let defaultInterval = RefreshInterval(value: 60, unit: .minute)
-
-    public let value: Int
-    public let unit: RefreshIntervalUnit
-
-    public init(value: Int, unit: RefreshIntervalUnit) {
-        self.value = unit.clamped(value)
-        self.unit = unit
-    }
-
-    fileprivate init(persistedValue: Int, unit: RefreshIntervalUnit) {
-        value = persistedValue
-        self.unit = unit
-    }
-
     public var timeInterval: TimeInterval? {
-        value == 0 ? nil : TimeInterval(value) * unit.secondsPerUnit
+        switch self {
+        case .disabled: nil
+        case .fifteenMinutes: 15 * 60
+        case .thirtyMinutes: 30 * 60
+        case .oneHour: 60 * 60
+        case .twoHours: 2 * 60 * 60
+        case .fourHours: 4 * 60 * 60
+        }
     }
 
-    public func replacingValue(_ value: Int) -> RefreshInterval {
-        RefreshInterval(value: value, unit: unit)
-    }
-
-    public func replacingUnit(_ unit: RefreshIntervalUnit) -> RefreshInterval {
-        RefreshInterval(value: value, unit: unit)
-    }
-
-    public func effective(for accessLevel: AccessLevel) -> RefreshInterval {
+    public func effective(for accessLevel: AccessLevel) -> Self {
         accessLevel.hasProFeatures ? self : Self.fixedFreeInterval
     }
 
     public func shouldRefresh(
         lastSuccessfulUpdate: Date?,
+        lastRefreshAttempt: Date? = nil,
         force: Bool = false,
         now: Date = Date()
     ) -> Bool {
         if force { return true }
         guard let timeInterval else { return false }
-        guard let lastSuccessfulUpdate else { return true }
-        return now.timeIntervalSince(lastSuccessfulUpdate) >= timeInterval
+        guard let referenceDate = [lastSuccessfulUpdate, lastRefreshAttempt].compactMap({ $0 }).max()
+        else { return true }
+        return now.timeIntervalSince(referenceDate) >= timeInterval
+    }
+
+    public func nextRefreshDate(
+        lastSuccessfulUpdate: Date?,
+        lastRefreshAttempt: Date? = nil,
+        now: Date = Date()
+    ) -> Date? {
+        guard let timeInterval else { return nil }
+        guard let referenceDate = [lastSuccessfulUpdate, lastRefreshAttempt].compactMap({ $0 }).max()
+        else { return now }
+        return max(now, referenceDate.addingTimeInterval(timeInterval))
+    }
+
+    public func earliestBackgroundBeginDate(from date: Date = Date()) -> Date? {
+        timeInterval.map(date.addingTimeInterval)
+    }
+
+    public static func migratingLegacy(value: Int, unit: String) -> Self? {
+        switch unit {
+        case "minute":
+            switch value {
+            case ...0: .disabled
+            case 1...15: .fifteenMinutes
+            case 16...30: .thirtyMinutes
+            case 31...60: .oneHour
+            case 61...120: .twoHours
+            default: .fourHours
+            }
+        case "hour":
+            switch value {
+            case ...0: .disabled
+            case 1: .oneHour
+            case 2: .twoHours
+            default: .fourHours
+            }
+        default:
+            nil
+        }
     }
 }
 
-public enum RefreshIntervalPreferences {
-    public static let valueKey = "refreshInterval.value"
-    public static let unitKey = "refreshInterval.unit"
+public enum AutomaticRefreshPreferences {
+    public static let intervalKey = "automaticRefreshInterval.v2"
+    public static let legacyValueKey = "refreshInterval.value"
+    public static let legacyUnitKey = "refreshInterval.unit"
 
-    public static func load(from defaults: UserDefaults) -> RefreshInterval {
-        let fallback = RefreshInterval.defaultInterval
-        guard let unitValue = defaults.string(forKey: unitKey),
-              let unit = RefreshIntervalUnit(rawValue: unitValue),
-              defaults.object(forKey: valueKey) != nil
-        else { return fallback }
-        let value = defaults.integer(forKey: valueKey)
-        if unit == .minute, value > unit.valueRange.upperBound {
-            return RefreshInterval(persistedValue: value, unit: unit)
+    public static func load(from defaults: UserDefaults) -> AutomaticRefreshInterval {
+        if let value = defaults.string(forKey: intervalKey),
+           let interval = AutomaticRefreshInterval(rawValue: value) {
+            return interval
         }
-        return RefreshInterval(value: value, unit: unit)
+
+        let interval: AutomaticRefreshInterval
+        if defaults.object(forKey: legacyValueKey) != nil,
+           let unit = defaults.string(forKey: legacyUnitKey),
+           let migrated = AutomaticRefreshInterval.migratingLegacy(
+               value: defaults.integer(forKey: legacyValueKey),
+               unit: unit
+           ) {
+            interval = migrated
+        } else {
+            interval = .defaultInterval
+        }
+        save(interval, to: defaults)
+        return interval
     }
 
-    public static func save(_ interval: RefreshInterval, to defaults: UserDefaults) {
-        defaults.set(interval.value, forKey: valueKey)
-        defaults.set(interval.unit.rawValue, forKey: unitKey)
+    public static func save(_ interval: AutomaticRefreshInterval, to defaults: UserDefaults) {
+        defaults.set(interval.rawValue, forKey: intervalKey)
     }
 }
 
@@ -305,6 +327,17 @@ public enum WatchAccountSelection {
         if current.contains(identifier) { return current }
         guard current.count < maximumCount else { return nil }
         return current + [identifier]
+    }
+
+    public static func initial(
+        accountIdentifiers: [UUID],
+        legacySelectedAccountIdentifiers: [UUID]
+    ) -> [UUID] {
+        normalized(
+            legacySelectedAccountIdentifiers.isEmpty
+                ? Array(accountIdentifiers.prefix(1))
+                : legacySelectedAccountIdentifiers
+        )
     }
 }
 

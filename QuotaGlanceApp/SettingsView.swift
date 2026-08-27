@@ -46,28 +46,15 @@ struct SettingsView: View {
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 Section {
-                    HStack(spacing: 16) {
-                        Picker(AppLocalization.string("Time", locale: locale), selection: Binding(
-                            get: { store.effectiveRefreshInterval.value },
-                            set: { store.updateRefreshInterval(store.refreshInterval.replacingValue($0)) }
-                        )) {
-                            ForEach(refreshIntervalValues, id: \.self) { value in
-                                Text(verbatim: "\(value)").tag(value)
-                            }
+                    Picker(AppLocalization.string("Automatic refresh interval", locale: locale), selection: Binding(
+                        get: { store.effectiveRefreshInterval },
+                        set: { store.updateRefreshInterval($0) }
+                    )) {
+                        ForEach(AutomaticRefreshInterval.allCases) { interval in
+                            Text(refreshIntervalTitle(interval)).tag(interval)
                         }
-                        .pickerStyle(.menu)
-
-                        Picker(AppLocalization.string("Unit", locale: locale), selection: Binding(
-                            get: { store.effectiveRefreshInterval.unit },
-                            set: { store.updateRefreshInterval(store.refreshInterval.replacingUnit($0)) }
-                        )) {
-                            Text(AppLocalization.string("Minutes", locale: locale))
-                                .tag(RefreshIntervalUnit.minute)
-                            Text(AppLocalization.string("Hours", locale: locale))
-                                .tag(RefreshIntervalUnit.hour)
-                        }
-                        .pickerStyle(.menu)
                     }
+                    .labelsHidden()
                     .disabled(!store.purchaseManager.hasProFeatures)
                     .overlay {
                         if !store.purchaseManager.hasProFeatures {
@@ -79,12 +66,15 @@ struct SettingsView: View {
                 } header: {
                     Text(AppLocalization.string("Automatic refresh interval", locale: locale))
                 } footer: {
-                    Text(AppLocalization.string(
-                        store.purchaseManager.hasProFeatures
-                            ? "0 = Automatic refresh off"
-                            : "Free refresh interval is fixed at 60 minutes",
-                        locale: locale
-                    ))
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !store.purchaseManager.hasProFeatures {
+                            Text(AppLocalization.string("Free refresh interval is fixed at 4 hours.", locale: locale))
+                        }
+                        Text(AppLocalization.string(
+                            "Background refresh timing is determined by iOS and may occur later than the selected interval.",
+                            locale: locale
+                        ))
+                    }
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
@@ -119,8 +109,8 @@ struct SettingsView: View {
                     }
 
                     Picker(AppLocalization.string("Widget & Watch quota", locale: locale), selection: Binding(
-                        get: { store.displayLimit },
-                        set: { store.displayLimit = $0 }
+                        get: { store.effectiveDisplayLimit },
+                        set: { store.updateDisplayLimit($0) }
                     )) {
                         Text(AppLocalization.string("5 hours", locale: locale)).tag(QuotaDisplayLimit.fiveHour)
                         Text(AppLocalization.string("Weekly", locale: locale)).tag(QuotaDisplayLimit.weekly)
@@ -161,7 +151,12 @@ struct SettingsView: View {
                 } header: {
                     Text(AppLocalization.string("Apple Watch display accounts", locale: locale))
                 } footer: {
-                    Text(AppLocalization.string("Choose up to 2 accounts for Apple Watch.", locale: locale))
+                    Text(AppLocalization.string(
+                        store.purchaseManager.hasProFeatures
+                            ? "Choose up to 2 accounts for Apple Watch."
+                            : "Free uses the first account. Trial and Pro can choose up to 2 accounts.",
+                        locale: locale
+                    ))
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
                 .id("watch")
@@ -251,11 +246,15 @@ struct SettingsView: View {
         }
     }
 
-    private var refreshIntervalValues: [Int] {
-        let interval = store.effectiveRefreshInterval
-        let standardValues = Array(interval.unit.valueRange)
-        guard !standardValues.contains(interval.value) else { return standardValues }
-        return (standardValues + [interval.value]).sorted()
+    private func refreshIntervalTitle(_ interval: AutomaticRefreshInterval) -> String {
+        switch interval {
+        case .disabled: AppLocalization.string("Off", locale: locale)
+        case .fifteenMinutes: AppLocalization.string("15 Minutes", locale: locale)
+        case .thirtyMinutes: AppLocalization.string("30 Minutes", locale: locale)
+        case .oneHour: AppLocalization.string("1 Hour", locale: locale)
+        case .twoHours: AppLocalization.string("2 Hours", locale: locale)
+        case .fourHours: AppLocalization.string("4 Hours", locale: locale)
+        }
     }
 
     @ViewBuilder

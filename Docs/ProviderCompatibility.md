@@ -77,7 +77,7 @@ No Claude credential was available in the Windows environment, so no real Claude
 | --- | --- | --- |
 | OAuth clients belong to vendor applications | Redirect or consent can be rejected; reuse may be disallowed | Honest `QuotaGlance` user-agent/originator, prominent documentation, no claim of official support |
 | Usage endpoints are undocumented for third parties | Schema, headers, or availability can change without notice | Strict decoders; schema errors never become 0%; last good cache is preserved |
-| Claude usage endpoint may return 429 | Aggressive polling can make usage unavailable | Five-minute app freshness window, 15-minute widget timelines, no complication networking |
+| Claude usage endpoint may return 429 | Aggressive polling can make usage unavailable | 15-minute minimum Pro automatic option, 4-hour Free interval, per-account data-age and single-flight gates, 15-minute Widget timelines, no complication networking |
 | iOS loopback callback is unverified | ASWebAuthenticationSession or provider redirect rules may block login | Fixed Codex allow-listed ports and dynamic Claude port; explicit real-device compatibility validation |
 | Anthropic recommends API keys for products built for others | Subscription OAuth distribution may conflict with provider policy | Disclose the independent integration, monitor provider policy, and retain the ability to remove or update the integration |
 | Provider tokens can rotate or be revoked early | Refresh can fail before local expiry | Retry once after 401; terminal auth errors preserve cached data and ask the user to reconnect |

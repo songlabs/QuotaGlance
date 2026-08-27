@@ -11,7 +11,7 @@ The current product includes:
 - multiple saved provider accounts, with entitlement-based access;
 - iPhone and iPad small and medium widgets;
 - an Apple Watch app plus circular, rectangular, and inline complications;
-- automatic refresh checks and separate manual refresh actions;
+- foreground automatic refresh, iOS background-refresh requests, and separate manual refresh actions;
 - English, Japanese, Korean, Simplified Chinese, and Traditional Chinese UI.
 
 QuotaGlance has no backend, analytics, usage-history database, provider inference UI, or third-party runtime dependency. Provider credentials remain in the iOS app's Keychain.
@@ -60,30 +60,44 @@ The Upgrade screen and product policy use the same comparison:
 | Apple Watch 5H | ✓ | ✓ |
 | Apple Watch Weekly | — | ✓ |
 | Apple Watch multiple accounts | — | ✓ |
-| Automatic data refresh | 60 min fixed | Customizable |
+| Automatic data refresh | 4 hours fixed | Off / 15 min / 30 min / 1 hour / 2 hours / 4 hours |
 
 An active 7-day Trial has the same feature access as Pro. In Free, the iPhone / iPad Widget shows an Upgrade prompt instead of quota data, while the Watch receives only the first entitled account, the 5H display limit, and no Weekly rows. Pro can select up to two Watch accounts and choose the Widget/Watch quota window.
 
 ## Data refresh
 
-Automatic refresh is a minimum data-age check, not a guaranteed background schedule. The iOS app evaluates it when the dashboard first runs and when the app returns to the active scene phase. Each connected, entitled account is checked independently against its last successful `UsageSnapshot.updatedAt`; there is no parallel timer, `BGTaskScheduler`, silent-push, or background-fetch system.
+Automatic refresh combines a foreground scheduler, `BGAppRefreshTask`, and a per-account data-age safety check. All automatic paths reuse `DashboardStore` and the existing snapshot-publication pipeline; they do not duplicate provider networking.
 
 ### Free
 
-- The effective automatic refresh interval is fixed at **60 minutes**.
-- Settings displays `60` + `Minutes`, and both controls are disabled.
+- The effective automatic refresh interval is fixed at **4 hours**.
+- Settings displays `4 Hours` in one disabled Picker. Free cannot turn automatic refresh off.
 - A previously stored Pro interval is left intact but is not used while access is Free.
 
 ### Trial and Pro
 
 - The effective automatic refresh interval is the user's stored setting.
-- The existing Settings controls remain available with `Minutes` (`0...60`) and `Hours` (`0...23`) units. A previously stored larger minute value, such as 120, remains selected and effective until the user changes it.
-- `0` keeps the selected unit and disables automatic refresh.
+- One Picker offers `Off`, `15 Minutes`, `30 Minutes`, `1 Hour`, `2 Hours`, and `4 Hours`.
+- `Off` disables foreground and background automatic refresh without disabling manual refresh.
 - If the user returns from Free to Trial or Pro, the previously stored interval becomes effective again.
 
 ### Default and persistence
 
-The initial/fallback interval is **60 minutes**. It is used only when both refresh preference keys do not contain a complete valid saved setting. Loading the new default does not write over a valid existing value, and switching access levels does not rewrite the stored interval.
+The initial stored and effective interval is **4 hours**. Trial and Pro unlock the Picker without silently changing that choice. Free also fixes the Widget/Watch quota display to 5H and the Watch account display to the first saved account; stored Pro choices remain intact and become effective again when Trial or Pro access returns.
+
+The first v2 preference read migrates the legacy minute/hour pair to the nearest new option that is not shorter: `0` becomes Off; `1...15` minutes becomes 15 minutes; `16...30` becomes 30 minutes; `31...60` becomes 1 hour; `61...120` becomes 2 hours; and anything longer becomes 4 hours. Legacy hours map as `0` → Off, `1` → 1 hour, `2` → 2 hours, and `3+` → 4 hours. Once the v2 value exists, it takes precedence and access-level changes never rewrite it.
+
+### Foreground scheduling
+
+While the app scene is active, the foreground scheduler uses each entitled account's last successful `UsageSnapshot.updatedAt` to schedule the remaining time until it is eligible. Returning to the foreground retains the startup/active data-age check: stale accounts refresh immediately, while fresh accounts keep their remaining delay. Leaving the active scene stops the foreground timer, and changing the effective interval reschedules it immediately. Per-account refresh state prevents overlapping Provider requests.
+
+### Background scheduling
+
+The iOS app registers `com.songlabs.QuotaGlance.refresh` and schedules a `BGAppRefreshTaskRequest` when it enters the background. The effective interval sets `earliestBeginDate`; it is only the earliest time iOS may run the request. Actual background execution is controlled by iOS and may occur later than the selected interval, or not occur when system Background App Refresh is unavailable or disabled.
+
+When iOS launches the task, QuotaGlance schedules the next request, refreshes eligible accounts through `DashboardStore`, publishes the same non-credential `SnapshotEnvelope` to the App Group and WatchConnectivity, reloads Widget timelines, and reports completion. Expiration cancels the in-flight Swift task and reports failure. Selecting Off as Trial or Pro cancels the pending request and prevents new automatic requests; Free always remains effective at 4 hours.
+
+QuotaGlance does not promise exact background timing, use silent push or remote notifications, or operate a backend for scheduling.
 
 ### Manual refresh
 
@@ -196,7 +210,7 @@ xcodebuild -project QuotaGlance.xcodeproj -target QuotaGlanceWatchWidget \
   -destination 'generic/platform=watchOS Simulator' build
 ```
 
-Then validate both provider logins with test accounts, Trial/Pro/Free transitions, refresh-setting persistence, foreground automatic-refresh gates, manual refresh, offline cached display, WatchConnectivity delivery, every Widget family, and a paired physical iPhone/Watch. OAuth loopback callbacks in particular need a real-device check.
+Then validate both provider logins with test accounts, Trial/Pro/Free transitions, refresh-setting persistence and migration, foreground automatic scheduling, manual refresh, offline cached display, Background App Refresh system-list visibility and actual task execution, Widget updates, WatchConnectivity delivery, every Widget family, and a paired physical iPhone/Watch. OAuth loopback callbacks and real background scheduling in particular need device checks.
 
 ## Repository layout
 

@@ -4,14 +4,18 @@ import SwiftUI
 @MainActor
 struct QuotaGlanceApp: App {
     @State private var store: DashboardStore
+    @Environment(\.scenePhase) private var scenePhase
     private let screenshotConfiguration: ScreenshotConfiguration?
+    private let backgroundRefreshScheduler: BackgroundRefreshScheduler
 
     init() {
         let configuration = ScreenshotConfiguration.current
-        screenshotConfiguration = configuration
-        _store = State(initialValue: AppEnvironment.makeDashboardStore(
+        let store = AppEnvironment.makeDashboardStore(
             screenshotConfiguration: configuration
-        ))
+        )
+        screenshotConfiguration = configuration
+        _store = State(initialValue: store)
+        backgroundRefreshScheduler = BackgroundRefreshScheduler(store: store)
     }
 
     var body: some Scene {
@@ -20,6 +24,18 @@ struct QuotaGlanceApp: App {
                 .id(screenshotConfiguration?.identity ?? "production")
                 .preferredColorScheme(.dark)
                 .environment(\.locale, store.appLanguage.locale)
+                .onChange(of: scenePhase, initial: true) { _, newValue in
+                    switch newValue {
+                    case .active:
+                        backgroundRefreshScheduler.appEnteredForeground()
+                    case .background:
+                        backgroundRefreshScheduler.appEnteredBackground()
+                    case .inactive:
+                        break
+                    @unknown default:
+                        break
+                    }
+                }
         }
     }
 

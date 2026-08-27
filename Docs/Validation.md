@@ -20,6 +20,10 @@ Executed checks:
 - entitlement publication gating, Free/Trial/Pro transitions, cached Trial expiry,
   and shared Watch account-selection unit tests
 - static routing tests for Free/Trial versus Lifetime Pro membership taps
+- discrete automatic-refresh durations, Free/Trial/Pro effective values, downgrade
+  preservation, legacy preference migration, retry-throttle, and schedule-date tests
+- static `BGTaskScheduler` identifier, Background fetch mode, target capability, source
+  membership, and five-language String Catalog checks
 
 The exact final command results belong in the task handoff because this document may precede the final commit.
 
@@ -33,4 +37,6 @@ The exact final command results belong in the task handoff because this document
 - OAuth browser login for either provider from the iOS app
 - real Claude usage response
 - physical-device Keychain, loopback listener, and refresh testing
+- Background App Refresh system-list visibility, system launch of `BGAppRefreshTask`,
+  and post-background Widget/Watch delivery
 - code signing, archive, TestFlight, or App Store review
