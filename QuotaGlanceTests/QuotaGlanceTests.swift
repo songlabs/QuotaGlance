@@ -73,4 +73,10 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertEqual(envelope.accessLevel, .free)
         XCTAssertFalse(envelope.accessLevel.hasProFeatures)
     }
+
+    func testSettingsMembershipRouting() {
+        XCTAssertTrue(SettingsUpgradeRouting.shouldPresentMembership(for: .free))
+        XCTAssertTrue(SettingsUpgradeRouting.shouldPresentMembership(for: .trial))
+        XCTAssertFalse(SettingsUpgradeRouting.shouldPresentMembership(for: .pro))
+    }
 }

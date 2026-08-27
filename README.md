@@ -129,6 +129,8 @@ The repository does not contain a local `.storekit` configuration file. Product 
 
 The app can follow the system language or persist an explicit language choice. Upgrade, refresh-setting, Widget, Watch, and complication strings use the same String Catalog.
 
+Settings presents Upgrade inside its own navigation flow for Free and Trial membership rows and Pro-only actions. The Lifetime Pro status row is informational and closing Settings cannot leave a deferred Dashboard upgrade sheet behind.
+
 ## Architecture and data flow
 
 ```text
@@ -154,7 +156,7 @@ OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain item
 
 ## Current verification boundary
 
-The shared `QuotaGlanceCore` package can be built and tested cross-platform. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iPhone app together with its iPhone widget, Watch app, and Watch complication.
+The shared `QuotaGlanceCore` package can be built and tested cross-platform. StoreKit entitlement initialization gates the first shared snapshot publication. Published Trial snapshots include the verified expiry date, allowing the Widget, Watch app, and complication to fail back to Free independently; all Watch surfaces derive their accounts from the same at-most-two-account selection. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iPhone app together with its iPhone widget, Watch app, and Watch complication.
 
 The manually triggered `Simulator Screenshot` workflow uses Debug-only launch arguments and synthetic preview data to capture required iPhone Dashboard, Settings, Upgrade (Trial available, Trial active, Trial expired, and Lifetime Pro), and Apple Watch Free/Pro scenarios. The longer Watch Pro dashboard is represented by separate top-data and refresh-area screenshots. Each scenario is launched independently, every required PNG is checked for non-zero size, and the complete inventory is uploaded as `quota-glance-simulator-screenshots`. These launch arguments are screenshot infrastructure, not a production feature; Release builds do not activate the preview environment. Widget and complication layouts have Xcode previews, but the workflow does not claim automated Widget/Watch-face screenshots because `simctl` does not provide a stable headless path to install each family onto the iPhone Home Screen or an Apple Watch face and render it for visual acceptance.
 

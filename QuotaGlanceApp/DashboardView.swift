@@ -34,6 +34,7 @@ struct DashboardView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalization.string("Settings", locale: locale), systemImage: "gearshape") {
+                        store.isShowingUpgrade = false
                         store.isShowingSettings = true
                     }
                     .accessibilityLabel(AppLocalization.string("Settings", locale: locale))

@@ -34,14 +34,16 @@ final class WatchDashboardStore {
     }
 
     var latestUpdatedAt: Date? {
-        envelope?.snapshots.map(\.updatedAt).max()
+        envelope?.watchAccountPresentations.compactMap { $0.snapshot?.updatedAt }.max()
     }
 
     func accountPresentations(for provider: AIProvider) -> [AccountUsagePresentation] {
-        envelope?.accountPresentations
+        envelope?.watchAccountPresentations
             .filter { $0.provider == provider }
             .sorted { $0.ordinal < $1.ordinal } ?? []
     }
+
+    var hasProFeatures: Bool { envelope?.hasProFeatures() ?? false }
 
     func refresh() async {
         guard !isRefreshing else { return }

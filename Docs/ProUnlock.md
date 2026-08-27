@@ -41,3 +41,19 @@ exists. This mitigates moving the device clock backwards, but it never creates a
 trial or supplies its start date. The old, unreleased `proTrial.v1` record's
 `startedAt` value is ignored; retaining the same record permits its `lastSeenAt`
 to continue protecting internal test installations without a complex migration.
+
+## Entitlement propagation
+
+The app does not publish an App Group or WatchConnectivity snapshot until StoreKit
+has completed its initial current-entitlement query. Every subsequent entitlement
+change, including transaction updates, purchases, restore, foreground checks, and
+the in-app Trial-expiry check, follows the same manager-to-store publication path.
+
+Snapshots carry the active Trial's expiry date derived from the verified
+transaction purchase date. Widget and Watch clients combine access level, expiry,
+and their current time; an expired cached Trial therefore uses Free presentation
+without requiring the iPhone app to reopen. Lifetime Pro has no expiry date.
+
+Settings presents Upgrade from within the Settings sheet. Free and Trial users can
+open it from membership or gated controls, while the Lifetime Pro status does not
+request an upgrade and dismissing Settings clears any deferred Dashboard route.

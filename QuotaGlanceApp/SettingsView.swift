@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var accountPendingDeletion: ProviderAccount?
     @State private var accountPendingRename: ProviderAccount?
     @State private var accountNameDraft = ""
+    @State private var isShowingUpgrade = false
 
     init(store: DashboardStore, initialScrollTarget: String? = nil) {
         self.store = store
@@ -21,7 +22,9 @@ struct SettingsView: View {
                 Form {
                 Section {
                     Button {
-                        store.requirePro()
+                        if SettingsUpgradeRouting.shouldPresentMembership(for: store.accessLevel) {
+                            isShowingUpgrade = true
+                        }
                     } label: {
                         LabeledContent {
                             Text(store.accessLevel == .pro
@@ -66,6 +69,13 @@ struct SettingsView: View {
                         .pickerStyle(.menu)
                     }
                     .disabled(!store.purchaseManager.hasProFeatures)
+                    .overlay {
+                        if !store.purchaseManager.hasProFeatures {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { isShowingUpgrade = true }
+                        }
+                    }
                 } header: {
                     Text(AppLocalization.string("Automatic refresh interval", locale: locale))
                 } footer: {
@@ -85,7 +95,7 @@ struct SettingsView: View {
                         }
                         Button {
                             if store.canAddAccount { Task { await store.addAccount(provider) } }
-                            else { store.requirePro() }
+                            else { isShowingUpgrade = true }
                         } label: {
                             Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                         }
@@ -116,6 +126,13 @@ struct SettingsView: View {
                         Text(AppLocalization.string("Weekly", locale: locale)).tag(QuotaDisplayLimit.weekly)
                     }
                     .disabled(!store.purchaseManager.hasProFeatures)
+                    .overlay {
+                        if !store.purchaseManager.hasProFeatures {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { isShowingUpgrade = true }
+                        }
+                    }
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
                 .id("display")
@@ -124,7 +141,7 @@ struct SettingsView: View {
                     ForEach(watchAccounts) { account in
                         Button {
                             if store.purchaseManager.hasProFeatures { store.toggleWatchSelection(account.id) }
-                            else { store.requirePro() }
+                            else { isShowingUpgrade = true }
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: account.provider == .codex ? "terminal" : "sparkles")
@@ -173,6 +190,12 @@ struct SettingsView: View {
         }
         .preferredColorScheme(.dark)
         .tint(QuotaGlanceTheme.brandAccent)
+        .sheet(isPresented: $isShowingUpgrade) {
+            UpgradeView(store: store)
+        }
+        .onDisappear {
+            store.isShowingUpgrade = false
+        }
         .alert(AppLocalization.string("Rename account", locale: locale), isPresented: Binding(
             get: { accountPendingRename != nil },
             set: { if !$0 { accountPendingRename = nil } }
@@ -296,5 +319,11 @@ struct SettingsView: View {
 
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+}
+
+enum SettingsUpgradeRouting {
+    static func shouldPresentMembership(for accessLevel: AccessLevel) -> Bool {
+        accessLevel != .pro
     }
 }
