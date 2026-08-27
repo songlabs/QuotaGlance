@@ -373,19 +373,29 @@ struct UsageModelsTests {
 
 @Suite("Refresh interval")
 struct RefreshIntervalTests {
-    @Test("Default is 30 minutes")
+    @Test("Default is 60 minutes")
     func defaultInterval() {
         let interval = RefreshInterval.defaultInterval
 
-        #expect(interval.value == 30)
+        #expect(interval.value == 60)
         #expect(interval.unit == .minute)
-        #expect(interval.timeInterval == Optional<TimeInterval>(1_800))
+        #expect(interval.timeInterval == Optional<TimeInterval>(3_600))
     }
 
     @Test("Minute and hour ranges match settings pickers")
     func validRanges() {
-        #expect(Array(RefreshIntervalUnit.minute.valueRange) == Array(0...59))
+        #expect(Array(RefreshIntervalUnit.minute.valueRange) == Array(0...60))
         #expect(Array(RefreshIntervalUnit.hour.valueRange) == Array(0...23))
+    }
+
+    @Test("Free is fixed at 60 minutes while Trial and Pro use the stored interval")
+    func effectiveIntervalFollowsAccessLevel() {
+        let stored = RefreshInterval(value: 15, unit: .minute)
+
+        #expect(stored.effective(for: .free) == .fixedFreeInterval)
+        #expect(stored.effective(for: .free).timeInterval == Optional<TimeInterval>(3_600))
+        #expect(stored.effective(for: .trial) == stored)
+        #expect(stored.effective(for: .pro) == stored)
     }
 
     @Test("Changing to hours clamps an invalid minute value")
@@ -451,9 +461,24 @@ struct RefreshIntervalTests {
 
         #expect(RefreshIntervalPreferences.load(from: defaults) == .defaultInterval)
 
-        let saved = RefreshInterval(value: 30, unit: .minute)
+        let saved = RefreshInterval(value: 15, unit: .minute)
         RefreshIntervalPreferences.save(saved, to: defaults)
         #expect(RefreshIntervalPreferences.load(from: defaults) == saved)
+
+        let storedBeforeAccessChange = RefreshIntervalPreferences.load(from: defaults)
+        #expect(storedBeforeAccessChange.effective(for: .free) == .fixedFreeInterval)
+        #expect(RefreshIntervalPreferences.load(from: defaults) == saved)
+        #expect(storedBeforeAccessChange.effective(for: .pro) == saved)
+
+        defaults.set(120, forKey: RefreshIntervalPreferences.valueKey)
+        defaults.set(RefreshIntervalUnit.minute.rawValue, forKey: RefreshIntervalPreferences.unitKey)
+        let savedTwoHoursInMinutes = RefreshIntervalPreferences.load(from: defaults)
+        #expect(savedTwoHoursInMinutes.value == 120)
+        #expect(savedTwoHoursInMinutes.unit == .minute)
+        #expect(savedTwoHoursInMinutes.timeInterval == Optional<TimeInterval>(7_200))
+        #expect(savedTwoHoursInMinutes.effective(for: .free) == .fixedFreeInterval)
+        #expect(savedTwoHoursInMinutes.effective(for: .pro) == savedTwoHoursInMinutes)
+        #expect(defaults.integer(forKey: RefreshIntervalPreferences.valueKey) == 120)
 
         defaults.set(59, forKey: RefreshIntervalPreferences.valueKey)
         defaults.set(RefreshIntervalUnit.hour.rawValue, forKey: RefreshIntervalPreferences.unitKey)

@@ -41,11 +41,9 @@ struct UpgradeView: View {
                 }
 
                 Section(AppLocalization.string("Free and Pro", locale: locale)) {
-                    feature("Free", "One account with 5H usage on iPhone and Apple Watch")
-                    feature("Free keeps one account, 5H, basic iPhone viewing, and Free Watch 5H")
-                    feature("Pro", "Multiple accounts, Weekly, widgets, and full Apple Watch features")
-                    feature("Trial expiry removes Weekly, multiple accounts, full widgets, and advanced Apple Watch displays")
+                    featureComparisonTable
                 }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 if store.accessLevel != .pro {
                     Section {
@@ -113,13 +111,98 @@ struct UpgradeView: View {
         Label(AppLocalization.string(key, locale: locale), systemImage: "checkmark")
     }
 
-    private func feature(_ title: String, _ detail: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(AppLocalization.string(title, locale: locale)).font(.headline)
-            if let detail {
-                Text(AppLocalization.string(detail, locale: locale)).foregroundStyle(QuotaGlanceTheme.secondaryText)
+    private var featureComparisonTable: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                comparisonTitle("Feature", isHeader: true)
+                comparisonHeader("Free")
+                comparisonHeader("Pro")
+            }
+            .padding(.bottom, 6)
+
+            Divider()
+            comparisonRow("iPhone 5H", free: .included, pro: .included)
+            Divider()
+            comparisonRow("iPhone Weekly", free: .unavailable, pro: .included)
+            Divider()
+            comparisonRow("Multiple accounts", free: .unavailable, pro: .included)
+            Divider()
+            comparisonRow("Widget", free: .unavailable, pro: .included)
+            Divider()
+            comparisonRow("Apple Watch 5H", free: .included, pro: .included)
+            Divider()
+            comparisonRow("Apple Watch Weekly", free: .unavailable, pro: .included)
+            Divider()
+            comparisonRow("Apple Watch multiple accounts", free: .unavailable, pro: .included)
+            Divider()
+            comparisonRow(
+                "Automatic data refresh",
+                free: .text("60 minutes fixed"),
+                pro: .text("Customizable")
+            )
+        }
+    }
+
+    private func comparisonRow(
+        _ title: String,
+        free: FeatureAvailability,
+        pro: FeatureAvailability
+    ) -> some View {
+        HStack(spacing: 8) {
+            comparisonTitle(title)
+            comparisonValue(free)
+            comparisonValue(pro)
+        }
+        .padding(.vertical, 7)
+    }
+
+    private func comparisonTitle(_ key: String, isHeader: Bool = false) -> some View {
+        Text(AppLocalization.string(key, locale: locale))
+            .font(isHeader ? .caption.weight(.semibold) : .subheadline)
+            .foregroundStyle(isHeader ? QuotaGlanceTheme.secondaryText : QuotaGlanceTheme.primaryText)
+            .lineLimit(3)
+            .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func comparisonHeader(_ key: String) -> some View {
+        Text(AppLocalization.string(key, locale: locale))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            .frame(width: 64)
+    }
+
+    @ViewBuilder
+    private func comparisonValue(_ availability: FeatureAvailability) -> some View {
+        Group {
+            switch availability {
+            case .included:
+                Image(systemName: "checkmark")
+                    .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                    .accessibilityLabel(AppLocalization.string("Included", locale: locale))
+            case .unavailable:
+                Text("—")
+                    .foregroundStyle(QuotaGlanceTheme.tertiaryText)
+                    .accessibilityLabel(AppLocalization.string("Not included", locale: locale))
+            case let .text(key):
+                Text(AppLocalization.string(key, locale: locale))
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
             }
         }
+        .font(.caption.weight(.semibold))
+        .lineLimit(2)
+        .minimumScaleFactor(0.75)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 64)
+        .frame(minHeight: 28)
+    }
+
+    private enum FeatureAvailability {
+        case included
+        case unavailable
+        case text(String)
     }
 
     @ViewBuilder

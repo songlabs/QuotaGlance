@@ -71,7 +71,7 @@ public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, 
 
     public var valueRange: ClosedRange<Int> {
         switch self {
-        case .minute: 0...59
+        case .minute: 0...60
         case .hour: 0...23
         }
     }
@@ -89,13 +89,19 @@ public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, 
 }
 
 public struct RefreshInterval: Equatable, Sendable {
-    public static let defaultInterval = RefreshInterval(value: 30, unit: .minute)
+    public static let fixedFreeInterval = RefreshInterval(value: 60, unit: .minute)
+    public static let defaultInterval = RefreshInterval(value: 60, unit: .minute)
 
     public let value: Int
     public let unit: RefreshIntervalUnit
 
     public init(value: Int, unit: RefreshIntervalUnit) {
         self.value = unit.clamped(value)
+        self.unit = unit
+    }
+
+    fileprivate init(persistedValue: Int, unit: RefreshIntervalUnit) {
+        value = persistedValue
         self.unit = unit
     }
 
@@ -109,6 +115,10 @@ public struct RefreshInterval: Equatable, Sendable {
 
     public func replacingUnit(_ unit: RefreshIntervalUnit) -> RefreshInterval {
         RefreshInterval(value: value, unit: unit)
+    }
+
+    public func effective(for accessLevel: AccessLevel) -> RefreshInterval {
+        accessLevel.hasProFeatures ? self : Self.fixedFreeInterval
     }
 
     public func shouldRefresh(
@@ -134,6 +144,9 @@ public enum RefreshIntervalPreferences {
               defaults.object(forKey: valueKey) != nil
         else { return fallback }
         let value = defaults.integer(forKey: valueKey)
+        if unit == .minute, value > unit.valueRange.upperBound {
+            return RefreshInterval(persistedValue: value, unit: unit)
+        }
         return RefreshInterval(value: value, unit: unit)
     }
 

@@ -38,18 +38,18 @@ struct SettingsView: View {
                 Section {
                     HStack(spacing: 16) {
                         Picker(AppLocalization.string("Time", locale: locale), selection: Binding(
-                            get: { store.refreshInterval.value },
-                            set: { store.refreshInterval = store.refreshInterval.replacingValue($0) }
+                            get: { store.effectiveRefreshInterval.value },
+                            set: { store.updateRefreshInterval(store.refreshInterval.replacingValue($0)) }
                         )) {
-                            ForEach(store.refreshInterval.unit.valueRange, id: \.self) { value in
+                            ForEach(refreshIntervalValues, id: \.self) { value in
                                 Text(verbatim: "\(value)").tag(value)
                             }
                         }
                         .pickerStyle(.menu)
 
                         Picker(AppLocalization.string("Unit", locale: locale), selection: Binding(
-                            get: { store.refreshInterval.unit },
-                            set: { store.refreshInterval = store.refreshInterval.replacingUnit($0) }
+                            get: { store.effectiveRefreshInterval.unit },
+                            set: { store.updateRefreshInterval(store.refreshInterval.replacingUnit($0)) }
                         )) {
                             Text(AppLocalization.string("Minutes", locale: locale))
                                 .tag(RefreshIntervalUnit.minute)
@@ -58,10 +58,16 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.menu)
                     }
+                    .disabled(!store.purchaseManager.hasProFeatures)
                 } header: {
                     Text(AppLocalization.string("Automatic refresh interval", locale: locale))
                 } footer: {
-                    Text(AppLocalization.string("0 = Automatic refresh off", locale: locale))
+                    Text(AppLocalization.string(
+                        store.purchaseManager.hasProFeatures
+                            ? "0 = Automatic refresh off"
+                            : "Free refresh interval is fixed at 60 minutes",
+                        locale: locale
+                    ))
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
@@ -192,6 +198,13 @@ struct SettingsView: View {
         case .free: AppLocalization.string("Free", locale: locale)
         case .pro: AppLocalization.string("Pro", locale: locale)
         }
+    }
+
+    private var refreshIntervalValues: [Int] {
+        let interval = store.effectiveRefreshInterval
+        let standardValues = Array(interval.unit.valueRange)
+        guard !standardValues.contains(interval.value) else { return standardValues }
+        return (standardValues + [interval.value]).sorted()
     }
 
     @ViewBuilder

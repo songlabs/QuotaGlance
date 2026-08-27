@@ -105,7 +105,7 @@ final class DashboardStore {
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
     var isShowingUpgrade = false
-    var refreshInterval: RefreshInterval {
+    private(set) var refreshInterval: RefreshInterval {
         didSet {
             RefreshIntervalPreferences.save(refreshInterval, to: settingsDefaults)
         }
@@ -223,8 +223,14 @@ final class DashboardStore {
 
     var accessLevel: AccessLevel { purchaseManager.accessLevel }
     var canAddAccount: Bool { purchaseManager.hasProFeatures || accounts.isEmpty }
+    var effectiveRefreshInterval: RefreshInterval { refreshInterval.effective(for: accessLevel) }
 
     func requirePro() { isShowingUpgrade = true }
+
+    func updateRefreshInterval(_ interval: RefreshInterval) {
+        guard purchaseManager.hasProFeatures else { return }
+        refreshInterval = interval
+    }
 
     func refreshAccess(previousAccessLevel: AccessLevel? = nil) async {
         let previous = previousAccessLevel ?? accessLevel
@@ -294,7 +300,7 @@ final class DashboardStore {
         let now = Date()
         let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
         for account in activeAccounts where states[account.id]?.isConnected == true {
-            if !refreshInterval.shouldRefresh(
+            if !effectiveRefreshInterval.shouldRefresh(
                 lastSuccessfulUpdate: states[account.id]?.snapshot?.updatedAt,
                 force: force,
                 now: now
