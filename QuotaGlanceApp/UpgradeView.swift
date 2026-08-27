@@ -45,6 +45,7 @@ struct UpgradeView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(isWorking || !store.purchaseManager.canPresentTrialPurchase)
                     }
+                    .id("trial")
                 }
 
                 Section(AppLocalization.string("Free and Pro", locale: locale)) {
@@ -69,6 +70,7 @@ struct UpgradeView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(isWorking || !store.purchaseManager.canPresentLifetimePurchase)
                     }
+                    .id("purchase")
                 }
 
                 Section {
