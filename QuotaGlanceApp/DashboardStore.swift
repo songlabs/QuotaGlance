@@ -194,7 +194,9 @@ final class DashboardStore {
             guard let self else { return false }
             return await self.refreshAllForWatch()
         }
-        publishSnapshots()
+        purchaseManager.entitlementDidChange = { [weak self] in
+            self?.publishSnapshots()
+        }
     }
 
     var defaultProvider: AIProvider {
@@ -233,9 +235,7 @@ final class DashboardStore {
     }
 
     func refreshAccess(previousAccessLevel: AccessLevel? = nil) async {
-        let previous = previousAccessLevel ?? accessLevel
         await purchaseManager.refreshEntitlements()
-        if previous != accessLevel { publishSnapshots() }
     }
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
@@ -312,7 +312,10 @@ final class DashboardStore {
     }
 
     private func refreshAllForWatch() async -> Bool {
-        let eligibleAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        let selected = Set(purchaseManager.hasProFeatures
+            ? watchAccountIdentifiers
+            : accounts.first.map { [$0.id] } ?? [])
+        let eligibleAccounts = accounts.filter { selected.contains($0.id) }
         let connectedAccounts = eligibleAccounts.filter { states[$0.id]?.isConnected == true }
         guard !connectedAccounts.isEmpty else { return false }
         var succeeded = true
@@ -494,6 +497,9 @@ final class DashboardStore {
     }
 
     private func publishSnapshots() {
+        guard EntitlementPublicationPolicy.canPublish(
+            isEntitlementLoaded: purchaseManager.isEntitlementLoaded
+        ) else { return }
         let entitledAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
         let snapshots = entitledAccounts.compactMap { states[$0.id]?.snapshot }
         let envelope = SnapshotEnvelope(
@@ -510,7 +516,8 @@ final class DashboardStore {
             watchAccountIdentifiers: purchaseManager.hasProFeatures
                 ? watchAccountIdentifiers
                 : entitledAccounts.first.map { [$0.id] } ?? [],
-            accessLevel: accessLevel
+            accessLevel: accessLevel,
+            proAccessExpiresAt: accessLevel == .trial ? purchaseManager.trialEndsAt : nil
         )
         try? cache.save(envelope)
         watchSync.send(envelope)

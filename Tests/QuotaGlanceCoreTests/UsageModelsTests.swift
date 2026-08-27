@@ -4,6 +4,27 @@ import Testing
 
 @Suite("Remaining percentage")
 struct UsageModelsTests {
+    @Test("Snapshots cannot publish before StoreKit entitlement initialization")
+    func entitlementPublicationInitialization() {
+        #expect(!EntitlementPublicationPolicy.canPublish(isEntitlementLoaded: false))
+        #expect(EntitlementPublicationPolicy.canPublish(isEntitlementLoaded: true))
+    }
+
+    @Test("Snapshot Trial expiry is evaluated independently by every client")
+    func snapshotTrialExpiry() {
+        let expiry = Date(timeIntervalSince1970: 10_000)
+        let envelope = SnapshotEnvelope(
+            snapshots: [],
+            accessLevel: .trial,
+            proAccessExpiresAt: expiry
+        )
+
+        #expect(envelope.hasProFeatures(at: expiry.addingTimeInterval(-1)))
+        #expect(!envelope.hasProFeatures(at: expiry))
+        #expect(!envelope.hasProFeatures(at: expiry.addingTimeInterval(1)))
+        #expect(envelope.effectiveDisplayLimit(at: expiry) == .fiveHour)
+    }
+
     @Test("StoreKit purchase dates resolve Free, Trial, and Pro states")
     func accessResolution() {
         let day: TimeInterval = 24 * 60 * 60
@@ -297,12 +318,33 @@ struct UsageModelsTests {
         let envelope = SnapshotEnvelope(
             snapshots: snapshots,
             accounts: accounts,
-            watchAccountIdentifiers: [thirdID, secondID]
+            watchAccountIdentifiers: [thirdID, secondID],
+            accessLevel: .pro
         )
 
         #expect(envelope.accountPresentations.count == 3)
         #expect(envelope.watchAccountPresentations.map(\.displayName) == ["song", "account2"])
         #expect(envelope.watchAccountPresentations.map(\.provider) == [.claude, .codex])
+    }
+
+    @Test("Free Watch presentation ignores saved multi-account selection")
+    func freeWatchUsesFirstAccountOnly() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let accounts = [
+            AccountDisplayMetadata(id: firstID, provider: .codex, ordinal: 1, displayName: "first"),
+            AccountDisplayMetadata(id: secondID, provider: .claude, ordinal: 1, displayName: "second"),
+        ]
+        let envelope = SnapshotEnvelope(
+            snapshots: [],
+            displayLimit: .weekly,
+            accounts: accounts,
+            watchAccountIdentifiers: [secondID, firstID],
+            accessLevel: .free
+        )
+
+        #expect(envelope.watchAccountPresentations.map(\.accountIdentifier) == [firstID])
+        #expect(envelope.effectiveDisplayLimit() == .fiveHour)
     }
 
     @Test("An explicit empty Watch selection does not silently select an account")
@@ -322,7 +364,8 @@ struct UsageModelsTests {
                 ordinal: 1,
                 displayName: "sou"
             )],
-            watchAccountIdentifiers: []
+            watchAccountIdentifiers: [],
+            accessLevel: .pro
         )
 
         #expect(envelope.watchAccountPresentations.isEmpty)

@@ -63,6 +63,12 @@ public enum AccessLevel: String, Codable, Equatable, Sendable {
     }
 }
 
+public enum EntitlementPublicationPolicy {
+    public static func canPublish(isEntitlementLoaded: Bool) -> Bool {
+        isEntitlementLoaded
+    }
+}
+
 public enum RefreshIntervalUnit: String, CaseIterable, Equatable, Identifiable, Sendable {
     case minute
     case hour
@@ -317,6 +323,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     public let accounts: [AccountDisplayMetadata]
     public let watchAccountIdentifiers: [UUID]
     public let accessLevel: AccessLevel
+    public let proAccessExpiresAt: Date?
 
     public init(
         version: Int = Self.currentVersion,
@@ -324,7 +331,8 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         displayLimit: QuotaDisplayLimit = .fiveHour,
         accounts: [AccountDisplayMetadata] = [],
         watchAccountIdentifiers: [UUID] = [],
-        accessLevel: AccessLevel = .free
+        accessLevel: AccessLevel = .free,
+        proAccessExpiresAt: Date? = nil
     ) {
         self.version = version
         self.snapshots = snapshots
@@ -332,6 +340,15 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         self.accounts = accounts
         self.watchAccountIdentifiers = WatchAccountSelection.normalized(watchAccountIdentifiers)
         self.accessLevel = accessLevel
+        self.proAccessExpiresAt = proAccessExpiresAt
+    }
+
+    public func hasProFeatures(at date: Date = Date()) -> Bool {
+        switch accessLevel {
+        case .free: false
+        case .pro: true
+        case .trial: proAccessExpiresAt.map { date < $0 } ?? false
+        }
     }
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {
@@ -377,7 +394,12 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     }
 
     public var watchAccountPresentations: [AccountUsagePresentation] {
+        watchAccountPresentations(at: Date())
+    }
+
+    public func watchAccountPresentations(at date: Date) -> [AccountUsagePresentation] {
         let presentations = accountPresentations
+        guard hasProFeatures(at: date) else { return Array(presentations.prefix(1)) }
         guard !watchAccountIdentifiers.isEmpty else {
             return accounts.isEmpty
                 ? Array(presentations.prefix(WatchAccountSelection.maximumCount))
@@ -388,6 +410,10 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         }
     }
 
+    public func effectiveDisplayLimit(at date: Date = Date()) -> QuotaDisplayLimit {
+        hasProFeatures(at: date) ? displayLimit : .fiveHour
+    }
+
     enum CodingKeys: String, CodingKey {
         case version
         case snapshots
@@ -395,6 +421,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         case accounts
         case watchAccountIdentifiers
         case accessLevel
+        case proAccessExpiresAt
     }
 
     public init(from decoder: Decoder) throws {
@@ -404,6 +431,7 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         displayLimit = try container.decodeIfPresent(QuotaDisplayLimit.self, forKey: .displayLimit) ?? .fiveHour
         accounts = try container.decodeIfPresent([AccountDisplayMetadata].self, forKey: .accounts) ?? []
         accessLevel = try container.decodeIfPresent(AccessLevel.self, forKey: .accessLevel) ?? .free
+        proAccessExpiresAt = try container.decodeIfPresent(Date.self, forKey: .proAccessExpiresAt)
         if let identifiers = try container.decodeIfPresent([UUID].self, forKey: .watchAccountIdentifiers) {
             watchAccountIdentifiers = WatchAccountSelection.normalized(identifiers)
         } else {

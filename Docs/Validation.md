@@ -17,6 +17,9 @@ Executed checks:
 - project-reference/static target membership checks
 - credential-flow searches covering `UserDefaults`, App Group cache, WatchConnectivity, Widget sources, `print`, and logging calls
 - final Git diff/status checks
+- entitlement publication gating, Free/Trial/Pro transitions, cached Trial expiry,
+  and shared Watch account-selection unit tests
+- static routing tests for Free/Trial versus Lifetime Pro membership taps
 
 The exact final command results belong in the task handoff because this document may precede the final commit.
 

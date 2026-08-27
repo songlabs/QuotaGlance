@@ -12,6 +12,7 @@ final class PurchaseManager {
     static let trialDuration: TimeInterval = 7 * 24 * 60 * 60
 
     private(set) var accessLevel: AccessLevel = .free
+    private(set) var isEntitlementLoaded = false
     private(set) var trialProduct: Product?
     private(set) var lifetimeProduct: Product?
     private(set) var trialEndsAt: Date?
@@ -19,6 +20,7 @@ final class PurchaseManager {
     private(set) var purchaseError: Error?
     private let trialStore: TrialKeychainStore
     private var updatesTask: Task<Void, Never>?
+    var entitlementDidChange: (() -> Void)?
 #if DEBUG
     private var screenshotLifetimePrice: String?
 #endif
@@ -53,11 +55,14 @@ final class PurchaseManager {
     }
 
     func start() async {
-        await loadProduct()
         await refreshEntitlements()
+        await loadProduct()
     }
 
     func refreshEntitlements(now: Date = Date()) async {
+        let previousAccessLevel = accessLevel
+        let previousTrialEndsAt = trialEndsAt
+        let wasLoaded = isEntitlementLoaded
         var hasLifetimePurchase = false
         var trialPurchaseDate: Date?
         for await result in Transaction.currentEntitlements {
@@ -83,6 +88,10 @@ final class PurchaseManager {
             trialDuration: Self.trialDuration,
             now: effectiveNow
         )
+        isEntitlementLoaded = true
+        if !wasLoaded || previousAccessLevel != accessLevel || previousTrialEndsAt != trialEndsAt {
+            entitlementDidChange?()
+        }
     }
 
     func purchaseTrial() async -> Bool {
@@ -141,6 +150,7 @@ final class PurchaseManager {
         self.accessLevel = accessLevel
         self.trialEndsAt = trialEndsAt
         self.hasTrialTransaction = hasTrialTransaction
+        isEntitlementLoaded = true
         screenshotLifetimePrice = lifetimePrice
     }
 #endif

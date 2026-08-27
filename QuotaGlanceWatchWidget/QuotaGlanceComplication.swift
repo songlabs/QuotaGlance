@@ -59,14 +59,14 @@ private struct ComplicationView: View {
     }
 
     private var selectedAccounts: [AccountUsagePresentation] {
-        entry.envelope?.watchAccountPresentations ?? []
+        entry.envelope?.watchAccountPresentations(at: entry.date) ?? []
     }
 
-    private var hasProFeatures: Bool { entry.envelope?.accessLevel.hasProFeatures ?? false }
+    private var hasProFeatures: Bool { entry.envelope?.hasProFeatures(at: entry.date) ?? false }
 
     private var circular: some View {
         let account = selectedAccounts.first
-        let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
+        let displayLimit = entry.envelope?.effectiveDisplayLimit(at: entry.date) ?? .fiveHour
         let window = account?.snapshot.flatMap { displayLimit.window(in: $0) }
         let remaining = window?.remainingPercentage
         return Gauge(value: remaining ?? 0, in: 0...100) {
