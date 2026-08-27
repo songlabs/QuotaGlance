@@ -104,7 +104,7 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/simulator-build.log"
 
-      - name: Install and launch iPhone and Watch apps
+      - name: Install iPhone and Watch apps
         run: |
           set -euo pipefail
           candidates_file="$RUNNER_TEMP/main-app-candidates.txt"
@@ -127,24 +127,81 @@ jobs:
           echo "Watch bundle ID: $built_watch_bundle_id"
 
           xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
-          xcrun simctl launch --terminate-running-process "$IPHONE_UDID" "$APP_BUNDLE_ID" --screenshot-mode
 
           if ! xcrun simctl get_app_container "$WATCH_UDID" "$WATCH_BUNDLE_ID" app >/dev/null 2>&1; then
             xcrun simctl install "$WATCH_UDID" "$WATCH_APP_PATH"
           fi
-          xcrun simctl launch --terminate-running-process "$WATCH_UDID" "$WATCH_BUNDLE_ID" --screenshot-mode
-          sleep 5
 
-          mkdir -p screenshots
-          iphone_screenshot=screenshots/quota-glance-iphone17-home.png
-          watch_screenshot=screenshots/quota-glance-watch-series11-home.png
-          xcrun simctl io "$IPHONE_UDID" screenshot "$iphone_screenshot"
-          xcrun simctl io "$WATCH_UDID" screenshot "$watch_screenshot"
-          test -f "$iphone_screenshot"
-          test -f "$watch_screenshot"
-          echo "Screenshot paths: $iphone_screenshot, $watch_screenshot"
-          file "$iphone_screenshot" "$watch_screenshot" | tee "$RUNNER_TEMP/screenshot-files.log"
-          ls -lh screenshots
+      - name: Capture required screenshot scenarios
+        run: |
+          set -euo pipefail
+          mkdir -p screenshots/iphone screenshots/watch
+
+          capture_iphone() {
+            local filename=$1
+            shift
+            xcrun simctl terminate "$IPHONE_UDID" "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl launch "$IPHONE_UDID" "$APP_BUNDLE_ID" --screenshot-mode "$@"
+            sleep 4
+            xcrun simctl io "$IPHONE_UDID" screenshot "screenshots/iphone/$filename"
+            test -s "screenshots/iphone/$filename"
+          }
+
+          capture_watch() {
+            local filename=$1
+            shift
+            xcrun simctl terminate "$WATCH_UDID" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl launch "$WATCH_UDID" "$WATCH_BUNDLE_ID" --screenshot-mode "$@"
+            sleep 4
+            xcrun simctl io "$WATCH_UDID" screenshot "screenshots/watch/$filename"
+            test -s "screenshots/watch/$filename"
+          }
+
+          capture_iphone iphone17-dashboard-pro.png \
+            --screenshot-screen dashboard --screenshot-access pro
+          capture_iphone iphone17-settings-top-pro.png \
+            --screenshot-screen settings --screenshot-access pro
+          capture_iphone iphone17-settings-display-watch-pro.png \
+            --screenshot-screen settings --screenshot-access pro --screenshot-position display
+          capture_iphone iphone17-upgrade-free-trial-available.png \
+            --screenshot-screen upgrade --screenshot-access free
+          capture_iphone iphone17-upgrade-free-comparison-purchase.png \
+            --screenshot-screen upgrade --screenshot-access free --screenshot-position comparison
+          capture_iphone iphone17-upgrade-trial-active.png \
+            --screenshot-screen upgrade --screenshot-access trial
+          capture_iphone iphone17-upgrade-trial-expired.png \
+            --screenshot-screen upgrade --screenshot-access trial-expired
+          capture_iphone iphone17-upgrade-lifetime-pro.png \
+            --screenshot-screen upgrade --screenshot-access pro
+
+          capture_watch watch-series11-dashboard-free.png --screenshot-access free
+          capture_watch watch-series11-dashboard-pro.png --screenshot-access pro
+
+      - name: Validate required screenshot inventory
+        run: |
+          set -euo pipefail
+          expected=(
+            screenshots/iphone/iphone17-dashboard-pro.png
+            screenshots/iphone/iphone17-settings-top-pro.png
+            screenshots/iphone/iphone17-settings-display-watch-pro.png
+            screenshots/iphone/iphone17-upgrade-free-trial-available.png
+            screenshots/iphone/iphone17-upgrade-free-comparison-purchase.png
+            screenshots/iphone/iphone17-upgrade-trial-active.png
+            screenshots/iphone/iphone17-upgrade-trial-expired.png
+            screenshots/iphone/iphone17-upgrade-lifetime-pro.png
+            screenshots/watch/watch-series11-dashboard-free.png
+            screenshots/watch/watch-series11-dashboard-pro.png
+          )
+
+          for screenshot in "${expected[@]}"; do
+            test -s "$screenshot"
+          done
+
+          actual_count=$(find screenshots -type f -name '*.png' | wc -l | tr -d ' ')
+          test "$actual_count" = "${#expected[@]}"
+          echo "Screenshot inventory:"
+          find screenshots -type f -name '*.png' -print | sort
+          find screenshots -type f -name '*.png' -exec file {} + | sort | tee "$RUNNER_TEMP/screenshot-files.log"
 
       - name: Collect Simulator diagnostics
         if: always()

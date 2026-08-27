@@ -7,17 +7,19 @@ enum PreviewFactory {
         id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
         provider: .codex,
         ordinal: 1,
-        identityLabel: "codex@example.com"
+        identityLabel: "Studio"
     )
     static let secondCodexAccount = ProviderAccount(
         id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
         provider: .codex,
-        ordinal: 2
+        ordinal: 2,
+        identityLabel: "Planning"
     )
     static let claudeAccount = ProviderAccount(
         id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
         provider: .claude,
-        ordinal: 1
+        ordinal: 1,
+        identityLabel: "Research"
     )
 
     static let codex = UsageSnapshot(
@@ -88,22 +90,42 @@ enum PreviewFactory {
         [ProviderPresentation(account: codexAccount, isConnected: true, snapshot: nil, isRefreshing: true, error: nil)]
     }
 
-    static func dashboard(states: [ProviderPresentation]) -> DashboardStore {
+    static func dashboard(
+        states: [ProviderPresentation],
+        access: ScreenshotAccess? = nil
+    ) -> DashboardStore {
         let providers: [AIProvider: any UsageProvider] = [
             .codex: PreviewProvider(provider: .codex),
             .claude: PreviewProvider(provider: .claude),
         ]
         let defaults = UserDefaults(suiteName: "QuotaGlancePreview.\(UUID().uuidString)")!
+        let purchaseManager = PurchaseManager()
         let store = DashboardStore(
             providers: providers,
             credentials: KeychainCredentialStore(),
             registry: AccountRegistry(defaults: defaults),
             cache: PreviewCache(),
             watchSync: PreviewWatchSync(),
+            purchaseManager: purchaseManager,
             settingsDefaults: defaults,
             migrateLegacyCredentials: false
         )
-        if !states.isEmpty { store.loadPreview(states) }
+#if DEBUG
+        if let access {
+            purchaseManager.configureForScreenshot(
+                accessLevel: access.accessLevel,
+                trialEndsAt: access == .trial ? Date().addingTimeInterval(4 * 24 * 60 * 60) : nil,
+                hasTrialTransaction: access == .trial || access == .trialExpired,
+                lifetimePrice: "¥500"
+            )
+        }
+#endif
+        if !states.isEmpty {
+            store.loadPreview(
+                states,
+                watchAccountIdentifiers: [codexAccount.id, claudeAccount.id]
+            )
+        }
         return store
     }
 

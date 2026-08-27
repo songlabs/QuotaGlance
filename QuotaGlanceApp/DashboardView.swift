@@ -3,8 +3,14 @@ import SwiftUI
 
 struct DashboardView: View {
     @Bindable var store: DashboardStore
+    let runsStartupTasks: Bool
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale
+
+    init(store: DashboardStore, runsStartupTasks: Bool = true) {
+        self.store = store
+        self.runsStartupTasks = runsStartupTasks
+    }
 
     var body: some View {
         NavigationStack {
@@ -42,6 +48,7 @@ struct DashboardView: View {
             UpgradeView(store: store)
         }
         .task {
+            guard runsStartupTasks else { return }
             let previousAccessLevel = store.accessLevel
             await store.purchaseManager.start()
             await store.refreshAccess(previousAccessLevel: previousAccessLevel)
@@ -49,6 +56,7 @@ struct DashboardView: View {
             await store.refreshAll(force: false)
         }
         .task(id: store.accessLevel) {
+            guard runsStartupTasks else { return }
             if store.accessLevel == .trial {
                 let remaining = store.purchaseManager.trialTimeRemaining
                 if remaining > 0 {
@@ -58,7 +66,7 @@ struct DashboardView: View {
             }
         }
         .onChange(of: scenePhase) { _, newValue in
-            guard newValue == .active else { return }
+            guard runsStartupTasks, newValue == .active else { return }
             Task {
                 await store.refreshAccess()
                 await store.refreshAll(force: false)

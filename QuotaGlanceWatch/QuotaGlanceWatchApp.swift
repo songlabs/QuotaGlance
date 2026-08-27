@@ -1,3 +1,4 @@
+import QuotaGlanceCore
 import SwiftUI
 
 @main
@@ -6,7 +7,16 @@ struct QuotaGlanceWatchApp: App {
     @State private var store: WatchDashboardStore = {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--screenshot-mode") {
-            return WatchPreview.store()
+            let arguments = ProcessInfo.processInfo.arguments
+            let access: AccessLevel
+            if let index = arguments.firstIndex(of: "--screenshot-access"),
+               arguments.indices.contains(index + 1),
+               arguments[index + 1] == "free" {
+                access = .free
+            } else {
+                access = .pro
+            }
+            return WatchPreview.store(accessLevel: access)
         }
 #endif
         return WatchDashboardStore()

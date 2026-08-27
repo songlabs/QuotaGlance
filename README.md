@@ -156,6 +156,8 @@ OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain item
 
 The shared `QuotaGlanceCore` package can be built and tested cross-platform. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iPhone app together with its iPhone widget, Watch app, and Watch complication.
 
+The manually triggered `Simulator Screenshot` workflow uses Debug-only launch arguments and synthetic preview data to capture required iPhone Dashboard, Settings, Upgrade (Trial available, Trial active, Trial expired, and Lifetime Pro), and Apple Watch Free/Pro scenarios. Each scenario is launched independently, every required PNG is checked for non-zero size, and the complete inventory is uploaded as `quota-glance-simulator-screenshots`. These launch arguments are screenshot infrastructure, not a production feature; Release builds do not activate the preview environment. Widget and complication layouts have Xcode previews, but the workflow does not claim automated Widget/Watch-face screenshots because `simctl` does not provide a stable headless path to install each family onto the iPhone Home Screen or an Apple Watch face and render it for visual acceptance.
+
 Core tests and static parsing do not prove real OAuth, provider network traffic, StoreKit/App Store Connect configuration, Settings interaction, Widget timelines, paired WatchConnectivity, physical-device layout, signing, archive, or TestFlight behavior. Those require the matching macOS, Simulator, App Store sandbox, or physical-device checks in [Validation](Docs/Validation.md).
 
 ## Open in Xcode

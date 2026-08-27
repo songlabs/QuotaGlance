@@ -19,6 +19,9 @@ final class PurchaseManager {
     private(set) var purchaseError: Error?
     private let trialStore: TrialKeychainStore
     private var updatesTask: Task<Void, Never>?
+#if DEBUG
+    private var screenshotLifetimePrice: String?
+#endif
 
     init(trialStore: TrialKeychainStore = TrialKeychainStore()) {
         self.trialStore = trialStore
@@ -29,6 +32,21 @@ final class PurchaseManager {
 
     var hasProFeatures: Bool { accessLevel.hasProFeatures }
     var canStartTrial: Bool { !hasTrialTransaction && accessLevel != .pro }
+    var lifetimeDisplayPrice: String? {
+#if DEBUG
+        screenshotLifetimePrice ?? lifetimeProduct?.displayPrice
+#else
+        lifetimeProduct?.displayPrice
+#endif
+    }
+    var canPresentTrialPurchase: Bool {
+#if DEBUG
+        trialProduct != nil || screenshotLifetimePrice != nil
+#else
+        trialProduct != nil
+#endif
+    }
+    var canPresentLifetimePurchase: Bool { lifetimeDisplayPrice != nil }
     var trialTimeRemaining: TimeInterval {
         guard let trialEndsAt else { return 0 }
         return max(0, trialEndsAt.timeIntervalSince(trialStore.effectiveNow(now: Date())))
@@ -98,15 +116,34 @@ final class PurchaseManager {
         }
     }
 
-    func restorePurchases() async {
+    func restorePurchases() async -> Bool {
         purchaseError = nil
-        do {
-            try await AppStore.sync()
-            await refreshEntitlements()
-        } catch {
+        let result = await performRestore(
+            sync: { try await AppStore.sync() },
+            refreshEntitlements: { await self.refreshEntitlements() }
+        )
+        switch result {
+        case .success:
+            return true
+        case let .failure(error):
             purchaseError = error
+            return false
         }
     }
+
+#if DEBUG
+    func configureForScreenshot(
+        accessLevel: AccessLevel,
+        trialEndsAt: Date?,
+        hasTrialTransaction: Bool,
+        lifetimePrice: String
+    ) {
+        self.accessLevel = accessLevel
+        self.trialEndsAt = trialEndsAt
+        self.hasTrialTransaction = hasTrialTransaction
+        screenshotLifetimePrice = lifetimePrice
+    }
+#endif
 
     private func loadProduct() async {
         do {

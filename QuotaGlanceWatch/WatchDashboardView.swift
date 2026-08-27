@@ -158,26 +158,27 @@ private struct WatchAccountCard: View {
 @MainActor
 enum WatchPreview {
     private static let codexID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
-    private static let secondCodexID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
     private static let claudeID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
 
-    static func store() -> WatchDashboardStore {
+    static func store(accessLevel: AccessLevel = .pro) -> WatchDashboardStore {
         let store = WatchDashboardStore()
         let updatedAt = Date()
-        let accounts = [
-            AccountDisplayMetadata(id: codexID, provider: .codex, ordinal: 1, displayName: "sou"),
-            AccountDisplayMetadata(id: secondCodexID, provider: .codex, ordinal: 2, displayName: "account2"),
-            AccountDisplayMetadata(id: claudeID, provider: .claude, ordinal: 1, displayName: "song"),
+        let allAccounts = [
+            AccountDisplayMetadata(id: codexID, provider: .codex, ordinal: 1, displayName: "Studio"),
+            AccountDisplayMetadata(id: claudeID, provider: .claude, ordinal: 1, displayName: "Research"),
         ]
-        let snapshots = [
+        let allSnapshots = [
             preview(.codex, accountIdentifier: codexID, remaining: 72, updatedAt: updatedAt),
-            preview(.codex, accountIdentifier: secondCodexID, remaining: 38, updatedAt: updatedAt),
             preview(.claude, accountIdentifier: claudeID, remaining: 48, updatedAt: updatedAt),
         ]
+        let isPro = accessLevel.hasProFeatures
+        let accounts = isPro ? allAccounts : Array(allAccounts.prefix(1))
+        let snapshots = isPro ? allSnapshots : Array(allSnapshots.prefix(1))
         store.apply(SnapshotEnvelope(
             snapshots: snapshots,
             accounts: accounts,
-            watchAccountIdentifiers: [codexID, claudeID]
+            watchAccountIdentifiers: accounts.map(\.id),
+            accessLevel: accessLevel
         ))
         return store
     }

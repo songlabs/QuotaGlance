@@ -3,14 +3,21 @@ import SwiftUI
 
 struct UpgradeView: View {
     @Bindable var store: DashboardStore
+    let initialScrollTarget: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @State private var isWorking = false
     @State private var resultMessage: String?
 
+    init(store: DashboardStore, initialScrollTarget: String? = nil) {
+        self.store = store
+        self.initialScrollTarget = initialScrollTarget
+    }
+
     var body: some View {
         NavigationStack {
-            List {
+            ScrollViewReader { proxy in
+                List {
                 Section {
                     Label(statusTitle, systemImage: "sparkles").font(.headline)
                     Text(statusDetail).foregroundStyle(QuotaGlanceTheme.secondaryText)
@@ -28,7 +35,7 @@ struct UpgradeView: View {
                         disclosure("Pro is a one-time purchase")
                         LabeledContent(
                             AppLocalization.string("Full unlock price", locale: locale),
-                            value: store.purchaseManager.lifetimeProduct?.displayPrice ?? "—"
+                            value: store.purchaseManager.lifetimeDisplayPrice ?? "—"
                         )
                         Button {
                             Task { await purchaseTrial() }
@@ -36,7 +43,7 @@ struct UpgradeView: View {
                             workingLabel(AppLocalization.string("Start 7-Day Free Trial", locale: locale))
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isWorking || store.purchaseManager.trialProduct == nil)
+                        .disabled(isWorking || !store.purchaseManager.canPresentTrialPurchase)
                     }
                 }
 
@@ -44,12 +51,13 @@ struct UpgradeView: View {
                     featureComparisonTable
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
+                .id("comparison")
 
                 if store.accessLevel != .pro {
                     Section {
                         LabeledContent(
                             AppLocalization.string("Buy Once", locale: locale),
-                            value: store.purchaseManager.lifetimeProduct?.displayPrice ?? "—"
+                            value: store.purchaseManager.lifetimeDisplayPrice ?? "—"
                         )
                         Text(AppLocalization.string("Lifetime Unlock", locale: locale))
                             .foregroundStyle(QuotaGlanceTheme.secondaryText)
@@ -59,7 +67,7 @@ struct UpgradeView: View {
                             workingLabel(AppLocalization.string("Buy Pro", locale: locale))
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isWorking || store.purchaseManager.lifetimeProduct == nil)
+                        .disabled(isWorking || !store.purchaseManager.canPresentLifetimePurchase)
                     }
                 }
 
@@ -68,6 +76,14 @@ struct UpgradeView: View {
                         Task { await restore() }
                     }
                     .disabled(isWorking)
+                }
+                .id("restore")
+                }
+                .onAppear {
+                    guard let initialScrollTarget else { return }
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(initialScrollTarget, anchor: .top)
+                    }
                 }
             }
             .navigationTitle(AppLocalization.string("Upgrade to Pro", locale: locale))
@@ -231,9 +247,12 @@ struct UpgradeView: View {
     private func restore() async {
         let previous = store.accessLevel
         isWorking = true
-        await store.purchaseManager.restorePurchases()
+        let succeeded = await store.purchaseManager.restorePurchases()
         await store.refreshAccess(previousAccessLevel: previous)
         isWorking = false
-        resultMessage = AppLocalization.string("Restore Completed", locale: locale)
+        resultMessage = AppLocalization.string(
+            restoreFeedbackLocalizationKey(succeeded: succeeded),
+            locale: locale
+        )
     }
 }

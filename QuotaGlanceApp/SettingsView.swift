@@ -3,15 +3,22 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var store: DashboardStore
+    let initialScrollTarget: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @State private var accountPendingDeletion: ProviderAccount?
     @State private var accountPendingRename: ProviderAccount?
     @State private var accountNameDraft = ""
 
+    init(store: DashboardStore, initialScrollTarget: String? = nil) {
+        self.store = store
+        self.initialScrollTarget = initialScrollTarget
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
+            ScrollViewReader { proxy in
+                Form {
                 Section {
                     Button {
                         store.requirePro()
@@ -111,6 +118,7 @@ struct SettingsView: View {
                     .disabled(!store.purchaseManager.hasProFeatures)
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
+                .id("display")
 
                 Section {
                     ForEach(watchAccounts) { account in
@@ -139,19 +147,27 @@ struct SettingsView: View {
                     Text(AppLocalization.string("Choose up to 2 accounts for Apple Watch.", locale: locale))
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
+                .id("watch")
 
                 Section(AppLocalization.string("About", locale: locale)) {
                     LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
                     LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
-            }
-            .scrollContentBackground(.hidden)
-            .background(QuotaGlanceTheme.appBackground)
-            .navigationTitle(AppLocalization.string("Settings", locale: locale))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(AppLocalization.string("Done", locale: locale)) { dismiss() }
+                }
+                .scrollContentBackground(.hidden)
+                .background(QuotaGlanceTheme.appBackground)
+                .navigationTitle(AppLocalization.string("Settings", locale: locale))
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(AppLocalization.string("Done", locale: locale)) { dismiss() }
+                    }
+                }
+                .onAppear {
+                    guard let initialScrollTarget else { return }
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(initialScrollTarget, anchor: .top)
+                    }
                 }
             }
         }

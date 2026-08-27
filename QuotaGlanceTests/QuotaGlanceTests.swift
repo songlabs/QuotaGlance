@@ -3,6 +3,48 @@ import QuotaGlanceCore
 import XCTest
 
 final class QuotaGlanceTests: XCTestCase {
+    @MainActor
+    func testRestoreOperationReturnsSuccessAfterSyncAndRefresh() async {
+        var events: [String] = []
+
+        let result = await performRestore(
+            sync: { events.append("sync") },
+            refreshEntitlements: { events.append("refresh") }
+        )
+
+        guard case .success = result else {
+            return XCTFail("Expected restore success")
+        }
+        XCTAssertEqual(events, ["sync", "refresh"])
+    }
+
+    @MainActor
+    func testRestoreOperationReturnsFailureWithoutRefreshing() async {
+        struct RestoreError: Error {}
+        var didRefresh = false
+
+        let result = await performRestore(
+            sync: { throw RestoreError() },
+            refreshEntitlements: { didRefresh = true }
+        )
+
+        guard case .failure = result else {
+            return XCTFail("Expected restore failure")
+        }
+        XCTAssertFalse(didRefresh)
+    }
+
+    func testRestoreFeedbackDistinguishesSuccessAndFailure() {
+        XCTAssertEqual(
+            restoreFeedbackLocalizationKey(succeeded: true),
+            "Restore Completed"
+        )
+        XCTAssertEqual(
+            restoreFeedbackLocalizationKey(succeeded: false),
+            "Restore Failed"
+        )
+    }
+
     func testRemainingPercentageClampsBoundaries() {
         XCTAssertEqual(UsageWindow(usedPercentage: 0, resetAt: nil).remainingPercentage, 100)
         XCTAssertEqual(UsageWindow(usedPercentage: 28, resetAt: nil).remainingPercentage, 72)

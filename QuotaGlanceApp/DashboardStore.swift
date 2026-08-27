@@ -483,9 +483,14 @@ final class DashboardStore {
         }
     }
 
-    func loadPreview(_ previews: [ProviderPresentation]) {
+    func loadPreview(
+        _ previews: [ProviderPresentation],
+        watchAccountIdentifiers: [UUID] = []
+    ) {
         accounts = previews.map(\.account)
         states = Dictionary(uniqueKeysWithValues: previews.map { ($0.account.id, $0) })
+        self.watchAccountIdentifiers = WatchAccountSelection.normalized(watchAccountIdentifiers)
+        cache.setWatchAccountIdentifiers(self.watchAccountIdentifiers)
     }
 
     private func publishSnapshots() {
