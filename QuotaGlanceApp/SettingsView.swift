@@ -168,6 +168,18 @@ struct SettingsView: View {
 
                 Section(AppLocalization.string("About", locale: locale)) {
                     LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
+                    Link(
+                        AppLocalization.string("Privacy Policy", locale: locale),
+                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/blob/main/Docs/PrivacyPolicy.md")!
+                    )
+                    Link(
+                        AppLocalization.string("Terms of Use", locale: locale),
+                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/blob/main/Docs/TermsOfUse.md")!
+                    )
+                    Link(
+                        AppLocalization.string("Support", locale: locale),
+                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/issues")!
+                    )
                     LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)

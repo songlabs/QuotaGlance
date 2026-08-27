@@ -74,7 +74,7 @@ QuotaGlance is provided on an availability basis. To the extent permitted by app
 
 OpenAI, Anthropic, and Apple are responsible for their own services and decisions. QuotaGlance does not control provider limits, account actions, data retention, outages, or policy changes. Nothing in these Terms excludes or limits rights or responsibilities that cannot lawfully be excluded or limited, including mandatory consumer protections.
 
-These Terms intentionally do not select a governing law, court, arbitration forum, indemnification regime, or fixed liability cap. Those provisions, and the publisher's legally required identity and contact details, should be settled through qualified legal review before publication.
+These Terms intentionally do not select a governing law, court, arbitration forum, indemnification regime, or fixed liability cap. Any provisions legally required for the publisher's jurisdiction and distribution should be settled through qualified legal review.
 
 ## Changes to these Terms
 
@@ -82,6 +82,6 @@ These Terms may be updated when QuotaGlance's implementation, supported provider
 
 ## Contact
 
-Contact information: **[to be provided by the publisher before publication]**.
+For questions about these Terms, contact QuotaGlance through the public [Support and issue tracker](https://github.com/songlabs/QuotaGlance/issues).
 
-These Terms are based on the repository implementation as of their effective date. Legal review is recommended before publication.
+These Terms are based on the repository implementation as of their effective date. Legal review is recommended when required for the publisher's jurisdiction and distribution.

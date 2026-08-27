@@ -78,17 +78,22 @@ No Claude credential was available in the Windows environment, so no real Claude
 | OAuth clients belong to vendor applications | Redirect or consent can be rejected; reuse may be disallowed | Honest `QuotaGlance` user-agent/originator, prominent documentation, no claim of official support |
 | Usage endpoints are undocumented for third parties | Schema, headers, or availability can change without notice | Strict decoders; schema errors never become 0%; last good cache is preserved |
 | Claude usage endpoint may return 429 | Aggressive polling can make usage unavailable | Five-minute app freshness window, 15-minute widget timelines, no complication networking |
-| iOS loopback callback is unverified | ASWebAuthenticationSession or provider redirect rules may block login | Fixed Codex allow-listed ports and dynamic Claude port; explicit real-device gate before release |
-| Anthropic recommends API keys for products built for others | Subscription OAuth distribution may conflict with provider policy | Treat this repository as a technical PoC until written provider approval or a supported OAuth registration path exists |
+| iOS loopback callback is unverified | ASWebAuthenticationSession or provider redirect rules may block login | Fixed Codex allow-listed ports and dynamic Claude port; explicit real-device compatibility validation |
+| Anthropic recommends API keys for products built for others | Subscription OAuth distribution may conflict with provider policy | Disclose the independent integration, monitor provider policy, and retain the ability to remove or update the integration |
 | Provider tokens can rotate or be revoked early | Refresh can fail before local expiry | Retry once after 401; terminal auth errors preserve cached data and ask the user to reconnect |
 
-## Release gate
+## Verification status
 
-QuotaGlance must not be described as meeting its end-to-end goal until all of the following are observed on Apple hardware or simulators as applicable:
+The OAuth clients, endpoints, and response schemas above are compatibility-sensitive. OpenAI and Anthropic have not supplied written authorization for QuotaGlance, and this document does not claim that either provider officially supports third-party use of these OAuth or usage interfaces. Providers may change or restrict their implementation or policy at any time.
 
-- Codex OAuth completes inside the iOS app and the usage response decodes.
-- Claude OAuth completes inside the iOS app and the usage response decodes.
-- Provider approval/terms permit the chosen public-client usage for the intended distribution.
-- The iPhone / iPad App, iPhone / iPad Widget, Watch app, and all three complication families build and render.
-- A paired Watch receives a snapshot without any credential fields.
-- Token refresh and disconnect behavior are tested for both providers.
+This is a **known provider compatibility and policy risk**, not a current App Store submission blocker. It should be reassessed if a provider publishes a policy that clearly prohibits QuotaGlance's specific implementation.
+
+The following end-to-end checks remain important compatibility validation and must not be inferred from static tests or the credential-safe Codex CLI observation documented above:
+
+| Check | Current documented status |
+| --- | --- |
+| Codex OAuth completes inside the iOS app and its usage response decodes | Not verified in this repository; requires TestFlight or device verification |
+| Claude OAuth completes inside the iOS app and its usage response decodes | Not verified; requires TestFlight or device verification |
+| Token refresh and disconnect work for both providers | Not verified; requires TestFlight or device verification |
+| A paired Watch receives a snapshot without credential fields | Static data-flow checks exist; paired-device delivery is not verified |
+| iPhone/iPad app, Widget, Watch app, and all complication families build and render | Build status is recorded by CI; rendering requires the applicable simulator or device verification |
