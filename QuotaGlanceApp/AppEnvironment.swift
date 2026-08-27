@@ -27,6 +27,10 @@ struct ScreenshotConfiguration {
     let access: ScreenshotAccess
     let position: String?
 
+    var identity: String {
+        [screen.rawValue, access.rawValue, position ?? "top"].joined(separator: "-")
+    }
+
     static var current: ScreenshotConfiguration? {
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments

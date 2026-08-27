@@ -24,7 +24,42 @@ struct QuotaGlanceWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchDashboardView(store: store)
+            WatchDashboardView(
+                store: store,
+                initialScrollTarget: screenshotPosition
+            )
+            .id(screenshotIdentity)
         }
+    }
+
+    private var screenshotPosition: String? {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--screenshot-mode"),
+              let index = arguments.firstIndex(of: "--screenshot-position"),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return arguments[index + 1]
+#else
+        return nil
+#endif
+    }
+
+    private var screenshotIdentity: String {
+#if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--screenshot-mode") else { return "production" }
+        let access: String
+        if let index = arguments.firstIndex(of: "--screenshot-access"),
+           arguments.indices.contains(index + 1) {
+            access = arguments[index + 1]
+        } else {
+            access = "pro"
+        }
+        return "\(access)-\(screenshotPosition ?? "top")"
+#else
+        return "production"
+#endif
     }
 }

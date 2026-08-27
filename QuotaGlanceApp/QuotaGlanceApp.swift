@@ -17,6 +17,7 @@ struct QuotaGlanceApp: App {
     var body: some Scene {
         WindowGroup {
             screenshotRoot
+                .id(screenshotConfiguration?.identity ?? "production")
                 .preferredColorScheme(.dark)
                 .environment(\.locale, store.appLanguage.locale)
         }

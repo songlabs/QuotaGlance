@@ -116,6 +116,7 @@ jobs:
           test "$built_bundle_id" = "$APP_BUNDLE_ID"
           echo "App path: $APP_PATH"
           echo "iPhone bundle ID: $built_bundle_id"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
           watch_candidates="$RUNNER_TEMP/watch-app-candidates.txt"
           find "$APP_PATH/Watch" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print > "$watch_candidates"
@@ -125,6 +126,7 @@ jobs:
           test "$built_watch_bundle_id" = "$WATCH_BUNDLE_ID"
           echo "Watch app path: $WATCH_APP_PATH"
           echo "Watch bundle ID: $built_watch_bundle_id"
+          echo "WATCH_APP_PATH=$WATCH_APP_PATH" >> "$GITHUB_ENV"
 
           xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
 
@@ -141,6 +143,8 @@ jobs:
             local filename=$1
             shift
             xcrun simctl terminate "$IPHONE_UDID" "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl uninstall "$IPHONE_UDID" "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
             xcrun simctl launch "$IPHONE_UDID" "$APP_BUNDLE_ID" --screenshot-mode "$@"
             sleep 4
             xcrun simctl io "$IPHONE_UDID" screenshot "screenshots/iphone/$filename"
@@ -151,6 +155,8 @@ jobs:
             local filename=$1
             shift
             xcrun simctl terminate "$WATCH_UDID" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl uninstall "$WATCH_UDID" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
+            xcrun simctl install "$WATCH_UDID" "$WATCH_APP_PATH"
             xcrun simctl launch "$WATCH_UDID" "$WATCH_BUNDLE_ID" --screenshot-mode "$@"
             sleep 4
             xcrun simctl io "$WATCH_UDID" screenshot "screenshots/watch/$filename"
@@ -176,6 +182,8 @@ jobs:
 
           capture_watch watch-series11-dashboard-free.png --screenshot-access free
           capture_watch watch-series11-dashboard-pro.png --screenshot-access pro
+          capture_watch watch-series11-dashboard-pro-refresh.png \
+            --screenshot-access pro --screenshot-position refresh
 
       - name: Validate required screenshot inventory
         run: |
@@ -191,6 +199,7 @@ jobs:
             screenshots/iphone/iphone17-upgrade-lifetime-pro.png
             screenshots/watch/watch-series11-dashboard-free.png
             screenshots/watch/watch-series11-dashboard-pro.png
+            screenshots/watch/watch-series11-dashboard-pro-refresh.png
           )
 
           for screenshot in "${expected[@]}"; do

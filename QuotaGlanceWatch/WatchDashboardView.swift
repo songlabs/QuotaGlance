@@ -3,10 +3,17 @@ import SwiftUI
 
 struct WatchDashboardView: View {
     let store: WatchDashboardStore
+    let initialScrollTarget: String?
+
+    init(store: WatchDashboardStore, initialScrollTarget: String? = nil) {
+        self.store = store
+        self.initialScrollTarget = initialScrollTarget
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     QuotaGlanceBrandIcon(size: 18)
                     Text("QuotaGlance")
@@ -14,6 +21,7 @@ struct WatchDashboardView: View {
                         .foregroundStyle(QuotaGlanceTheme.primaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .id("top")
 
                 if hasAccounts {
                     ForEach(AIProvider.allCases) { provider in
@@ -70,6 +78,7 @@ struct WatchDashboardView: View {
                 .tint(QuotaGlanceTheme.brandAccent)
                 .disabled(store.isRefreshing)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .id("refresh")
 
                 if store.refreshFailed {
                     Label(
@@ -79,8 +88,15 @@ struct WatchDashboardView: View {
                     .font(.caption2)
                     .foregroundStyle(QuotaGlanceTheme.attention)
                 }
+                }
+                .padding(.horizontal, 2)
             }
-            .padding(.horizontal, 2)
+            .onAppear {
+                guard let initialScrollTarget else { return }
+                DispatchQueue.main.async {
+                    proxy.scrollTo(initialScrollTarget, anchor: .bottom)
+                }
+            }
         }
         .background(QuotaGlanceTheme.appBackground.ignoresSafeArea())
     }
