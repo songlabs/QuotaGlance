@@ -160,8 +160,11 @@ QuotaGlance is an independent application and is not affiliated with or endorsed
 
 Provider quota and reset values depend on compatibility-sensitive third-party services. Values may be delayed, unavailable, incomplete, or changed by the provider, and QuotaGlance does not create a missing reset time. Widget and complication refresh timing is controlled by Apple platforms and is not guaranteed to occur at an exact interval.
 
-- [Privacy Policy](Docs/PrivacyPolicy.md)
-- [Terms of Use](Docs/TermsOfUse.md)
+- [Website](https://songlabs.github.io/QuotaGlance/)
+- [Privacy Policy](https://songlabs.github.io/QuotaGlance/privacy/)
+- [Terms of Use](https://songlabs.github.io/QuotaGlance/terms/)
+- [Support](https://songlabs.github.io/QuotaGlance/support/)
+- Support email: [songlabs.dev@gmail.com](mailto:songlabs.dev@gmail.com)
 
 ## Current verification boundary
 

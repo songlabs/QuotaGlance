@@ -170,15 +170,15 @@ struct SettingsView: View {
                     LabeledContent(AppLocalization.string("Privacy", locale: locale), value: AppLocalization.string("Credentials stay in Keychain", locale: locale))
                     Link(
                         AppLocalization.string("Privacy Policy", locale: locale),
-                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/blob/main/Docs/PrivacyPolicy.md")!
+                        destination: URL(string: "https://songlabs.github.io/QuotaGlance/privacy/")!
                     )
                     Link(
                         AppLocalization.string("Terms of Use", locale: locale),
-                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/blob/main/Docs/TermsOfUse.md")!
+                        destination: URL(string: "https://songlabs.github.io/QuotaGlance/terms/")!
                     )
                     Link(
                         AppLocalization.string("Support", locale: locale),
-                        destination: URL(string: "https://github.com/songlabs/QuotaGlance/issues")!
+                        destination: URL(string: "https://songlabs.github.io/QuotaGlance/support/")!
                     )
                     LabeledContent(AppLocalization.string("Version", locale: locale), value: version)
                 }
