@@ -45,7 +45,7 @@ An account's display name follows this order:
 
 Pro and an active Trial retain and expose multiple accounts. Free exposes only the first saved account; additional saved accounts are not deleted when access falls back to Free.
 
-The provider usage endpoints are compatibility-sensitive because they are not documented as stable third-party iOS APIs. See [Provider compatibility](Docs/ProviderCompatibility.md) before distribution.
+The provider OAuth flows and usage endpoints are compatibility-sensitive because they are not documented as stable third-party iOS APIs. OpenAI and Anthropic have not supplied written authorization for QuotaGlance, and QuotaGlance does not claim official provider support. Provider behavior or policy may change or restrict these integrations. This is a known compatibility and provider-policy risk, not a current App Store submission blocker; see [Provider compatibility](Docs/ProviderCompatibility.md).
 
 ## Free and Pro
 
