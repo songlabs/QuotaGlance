@@ -9,6 +9,14 @@ The app is not a subscription and never charges automatically. It never embeds a
 price or currency; the upgrade screen displays StoreKit's localized
 `Product.displayPrice`.
 
+## Public App Store links
+
+- Website: https://songlabs.github.io/QuotaGlance/
+- Privacy Policy URL: https://songlabs.github.io/QuotaGlance/privacy/
+- Terms of Use: https://songlabs.github.io/QuotaGlance/terms/
+- Support URL: https://songlabs.github.io/QuotaGlance/support/
+- Support email: [songlabs.dev@gmail.com](mailto:songlabs.dev@gmail.com)
+
 ## App Store Connect setup
 
 1. Accept any pending Paid Apps agreement and complete Tax and Banking under

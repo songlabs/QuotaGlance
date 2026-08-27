@@ -101,6 +101,10 @@ This policy may be updated when QuotaGlance's implementation, supported provider
 
 ## Contact
 
-For privacy questions or requests, contact QuotaGlance through the public [Support and issue tracker](https://github.com/songlabs/QuotaGlance/issues).
+For privacy questions or requests, contact:
+
+[songlabs.dev@gmail.com](mailto:songlabs.dev@gmail.com)
+
+Bug reports and feature requests can also be submitted through the public [GitHub issue tracker](https://github.com/songlabs/QuotaGlance/issues).
 
 This policy is based on the repository implementation as of its effective date. Legal review is recommended when required for the publisher's jurisdiction and distribution.
