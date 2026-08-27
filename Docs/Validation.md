@@ -30,7 +30,7 @@ The exact final command results belong in the task handoff because this document
 - iPhone or Watch Simulator launch
 - WidgetKit preview rendering
 - iPhone/Watch paired WatchConnectivity test
-- OAuth browser login for either provider from the iPhone app
+- OAuth browser login for either provider from the iOS app
 - real Claude usage response
 - physical-device Keychain, loopback listener, and refresh testing
 - code signing, archive, TestFlight, or App Store review

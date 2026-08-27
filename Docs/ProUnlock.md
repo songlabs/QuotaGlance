@@ -52,7 +52,7 @@ the in-app Trial-expiry check, follows the same manager-to-store publication pat
 Snapshots carry the active Trial's expiry date derived from the verified
 transaction purchase date. Widget and Watch clients combine access level, expiry,
 and their current time; an expired cached Trial therefore uses Free presentation
-without requiring the iPhone app to reopen. Lifetime Pro has no expiry date.
+without requiring the iOS app to reopen. Lifetime Pro has no expiry date.
 
 Settings presents Upgrade from within the Settings sheet. Free and Trial users can
 open it from membership or gated controls, while the Lifetime Pro status does not

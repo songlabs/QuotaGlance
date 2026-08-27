@@ -58,6 +58,7 @@ Anthropic's public `anthropics/claude-code` repository does not publish the core
 - Current response families: `five_hour`, `seven_day`, optional model-specific windows, and a newer optional `limits` array
 - Direct window schema: `utilization` is used percentage on a 0–100 scale; `resets_at` is ISO-8601
 - Newer array schema: `kind`, `group`, `percent`, and `resets_at`; QuotaGlance maps `session` and `weekly_all`
+- `resets_at` is optional server data. Recent `limits` responses can omit it or return it as `null`; QuotaGlance preserves that as an unknown reset time and does not derive one from the quota duration or fetch timestamp.
 
 Primary/provider-controlled pointers:
 
@@ -65,6 +66,7 @@ Primary/provider-controlled pointers:
 - [Official Claude Code repository](https://github.com/anthropics/claude-code)
 - [Anthropic report showing that `/usage` requires `user:profile`](https://github.com/anthropics/claude-code/issues/16749)
 - [Anthropic report documenting `/api/oauth/usage` 429 behavior](https://github.com/anthropics/claude-code/issues/30930)
+- [Recent raw `limits` response with an omitted session `resets_at`](https://github.com/anthropics/claude-code/issues/87419)
 - [Anthropic guidance for third-party developer authentication](https://support.claude.com/en/articles/13189465-log-in-to-your-claude-account)
 
 No Claude credential was available in the Windows environment, so no real Claude OAuth or HTTP response was claimed. The sanitized fixture follows the current official binary's embedded response validator and field names; it is not presented as a captured QuotaGlance login.
@@ -84,9 +86,9 @@ No Claude credential was available in the Windows environment, so no real Claude
 
 QuotaGlance must not be described as meeting its end-to-end goal until all of the following are observed on Apple hardware or simulators as applicable:
 
-- Codex OAuth completes inside the iPhone app and the usage response decodes.
-- Claude OAuth completes inside the iPhone app and the usage response decodes.
+- Codex OAuth completes inside the iOS app and the usage response decodes.
+- Claude OAuth completes inside the iOS app and the usage response decodes.
 - Provider approval/terms permit the chosen public-client usage for the intended distribution.
-- iPhone, Watch, iPhone widget, and all three complication families build and render.
+- The iPhone / iPad App, iPhone / iPad Widget, Watch app, and all three complication families build and render.
 - A paired Watch receives a snapshot without any credential fields.
 - Token refresh and disconnect behavior are tested for both providers.

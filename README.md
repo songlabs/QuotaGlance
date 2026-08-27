@@ -2,38 +2,38 @@
 
 ## App overview
 
-QuotaGlance is a local-first SwiftUI app for checking the remaining usage windows of supported AI services. The iPhone app signs in to providers, retrieves 5-hour and Weekly quota data, shows the last successful update time, and shares non-sensitive snapshots with WidgetKit and Apple Watch.
+QuotaGlance is a local-first SwiftUI app for checking the remaining usage windows of supported AI services. The iOS app signs in to providers, retrieves 5-hour and Weekly quota data, shows the last successful update time, and shares non-sensitive snapshots with WidgetKit and Apple Watch.
 
 The current product includes:
 
 - Codex and Claude account connections;
-- 5H and Weekly remaining-usage views on iPhone;
+- 5H and Weekly remaining-usage views on iPhone and iPad;
 - multiple saved provider accounts, with entitlement-based access;
-- iPhone small and medium widgets;
+- iPhone and iPad small and medium widgets;
 - an Apple Watch app plus circular, rectangular, and inline complications;
 - automatic refresh checks and separate manual refresh actions;
 - English, Japanese, Korean, Simplified Chinese, and Traditional Chinese UI.
 
-QuotaGlance has no backend, analytics, usage-history database, provider inference UI, or third-party runtime dependency. Provider credentials remain on the iPhone in Keychain.
+QuotaGlance has no backend, analytics, usage-history database, provider inference UI, or third-party runtime dependency. Provider credentials remain in the iOS app's Keychain.
 
 ## Supported platforms
 
 | Target | Current implementation |
 | --- | --- |
-| iPhone app (`QuotaGlance`) | SwiftUI, iOS 18.0+; the Xcode target also declares the iPad device family |
-| iPhone widget (`QuotaGlanceWidget`) | WidgetKit `.systemSmall` and `.systemMedium` families |
-| Apple Watch app (`QuotaGlance Watch App`) | SwiftUI, watchOS 11.0+ |
+| iPhone / iPad App (`QuotaGlance`) | SwiftUI, iOS 18.0+ |
+| iPhone / iPad Widget (`QuotaGlanceWidget`) | WidgetKit `.systemSmall` and `.systemMedium` families |
+| Apple Watch App (`QuotaGlance Watch App`) | SwiftUI, watchOS 11.0+ |
 | Apple Watch complication (`QuotaGlanceWatchWidget`) | WidgetKit `.accessoryCircular`, `.accessoryRectangular`, and `.accessoryInline` families |
 | Tests (`QuotaGlanceTests`, `QuotaGlanceCoreTests`) | Xcode XCTest plus cross-platform Swift Testing coverage |
 
-The iPhone app embeds the iPhone widget and Watch app. The Watch app embeds the complication extension.
+The iOS app target embeds the iPhone / iPad Widget and Watch app. The Watch app embeds the complication extension.
 
 ## Supported services and accounts
 
 | Service | Login and usage implementation | Account identity used by the UI |
 | --- | --- | --- |
-| Codex | OpenAI browser OAuth with PKCE and a loopback callback; the iPhone retrieves Codex usage data | Readable OAuth/JWT name, then email |
-| Claude | Claude browser OAuth with PKCE and a loopback callback; the iPhone retrieves Claude usage data | OAuth account name, then `email_address` |
+| Codex | OpenAI browser OAuth with PKCE and a loopback callback; the iOS app retrieves Codex usage data | Readable OAuth/JWT name, then email |
+| Claude | Claude browser OAuth with PKCE and a loopback callback; the iOS app retrieves Claude usage data | OAuth account name, then `email_address` |
 
 Only `codex` and `claude` exist in the current `AIProvider` model and `AppEnvironment` provider registry. Both provider decoders map the returned 5H/session and Weekly windows into the shared `UsageSnapshot` model.
 
@@ -62,11 +62,11 @@ The Upgrade screen and product policy use the same comparison:
 | Apple Watch multiple accounts | — | ✓ |
 | Automatic data refresh | 60 min fixed | Customizable |
 
-An active 7-day Trial has the same feature access as Pro. In Free, the iPhone widget shows an Upgrade prompt instead of quota data, while the Watch receives only the first entitled account, the 5H display limit, and no Weekly rows. Pro can select up to two Watch accounts and choose the Widget/Watch quota window.
+An active 7-day Trial has the same feature access as Pro. In Free, the iPhone / iPad Widget shows an Upgrade prompt instead of quota data, while the Watch receives only the first entitled account, the 5H display limit, and no Weekly rows. Pro can select up to two Watch accounts and choose the Widget/Watch quota window.
 
 ## Data refresh
 
-Automatic refresh is a minimum data-age check, not a guaranteed background schedule. The iPhone evaluates it when the dashboard first runs and when the app returns to the active scene phase. Each connected, entitled account is checked independently against its last successful `UsageSnapshot.updatedAt`; there is no parallel timer, `BGTaskScheduler`, silent-push, or background-fetch system.
+Automatic refresh is a minimum data-age check, not a guaranteed background schedule. The iOS app evaluates it when the dashboard first runs and when the app returns to the active scene phase. Each connected, entitled account is checked independently against its last successful `UsageSnapshot.updatedAt`; there is no parallel timer, `BGTaskScheduler`, silent-push, or background-fetch system.
 
 ### Free
 
@@ -89,8 +89,8 @@ The initial/fallback interval is **60 minutes**. It is used only when both refre
 
 Manual refresh is separate from automatic refresh and is not rate-gated by the configured interval:
 
-- iPhone pull-to-refresh forces a refresh check;
-- each iPhone account card can refresh directly;
+- iOS app pull-to-refresh forces a refresh check;
+- each iOS app account card can refresh directly;
 - Apple Watch's Refresh Data action requests a refresh from the iPhone.
 
 These actions remain available to Free users for their entitled account. A successful refresh replaces the snapshot and update timestamp; an error preserves the most recent successful snapshot.
@@ -99,7 +99,7 @@ These actions remain available to Free users for their entitled account. A succe
 
 - Percentages, rings, and progress bars represent **remaining** quota: `clamp(100 - used, 0...100)`.
 - A provider window that is absent is displayed as `—`, not as `0%`.
-- The iPhone and Watch show the last successful update time; snapshots older than 15 minutes receive the cached/stale treatment.
+- The iPhone, iPad, and Watch show the last successful update time; snapshots older than 15 minutes receive the cached/stale treatment.
 - Refresh failures keep the previous successful quota data and add an error state instead of replacing it with empty data.
 
 ## Purchase and Trial
@@ -134,7 +134,7 @@ Settings presents Upgrade inside its own navigation flow for Free and Trial memb
 ## Architecture and data flow
 
 ```text
-Codex / Claude OAuth + Usage API (iPhone only)
+Codex / Claude OAuth + Usage API (iOS app only)
                          |
                          v
                   DashboardStore
@@ -146,7 +146,7 @@ Codex / Claude OAuth + Usage API (iPhone only)
       App Group UserDefaults            WatchConnectivity
                   |                         |
                   v                         v
-         iPhone Widget              Watch snapshot cache
+     iPhone / iPad Widget          Watch snapshot cache
                                               |
                                               v
                                   Watch app + complication
@@ -156,7 +156,7 @@ OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain item
 
 ## Current verification boundary
 
-The shared `QuotaGlanceCore` package can be built and tested cross-platform. StoreKit entitlement initialization gates the first shared snapshot publication. Published Trial snapshots include the verified expiry date, allowing the Widget, Watch app, and complication to fail back to Free independently; all Watch surfaces derive their accounts from the same at-most-two-account selection. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iPhone app together with its iPhone widget, Watch app, and Watch complication.
+The shared `QuotaGlanceCore` package can be built and tested cross-platform. StoreKit entitlement initialization gates the first shared snapshot publication. Published Trial snapshots include the verified expiry date, allowing the Widget, Watch app, and complication to fail back to Free independently; all Watch surfaces derive their accounts from the same at-most-two-account selection. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iOS app together with its iPhone / iPad Widget, Watch app, and Watch complication.
 
 The manually triggered `Simulator Screenshot` workflow uses Debug-only launch arguments and synthetic preview data to capture required iPhone Dashboard, Settings, Upgrade (Trial available, Trial active, Trial expired, and Lifetime Pro), and Apple Watch Free/Pro scenarios. The longer Watch Pro dashboard is represented by separate top-data and refresh-area screenshots. Each scenario is launched independently, every required PNG is checked for non-zero size, and the complete inventory is uploaded as `quota-glance-simulator-screenshots`. These launch arguments are screenshot infrastructure, not a production feature; Release builds do not activate the preview environment. Widget and complication layouts have Xcode previews, but the workflow does not claim automated Widget/Watch-face screenshots because `simctl` does not provide a stable headless path to install each family onto the iPhone Home Screen or an Apple Watch face and render it for visual acceptance.
 
@@ -168,7 +168,7 @@ Core tests and static parsing do not prove real OAuth, provider network traffic,
 2. Assign a development team to the four application/extension targets.
 3. Register or replace the bundle identifiers and App Groups if the current identifiers are not available to the team.
 4. Confirm these App Groups exist in the developer account:
-   - `group.com.songlabs.QuotaGlance` for the iPhone app and iPhone widget;
+   - `group.com.songlabs.QuotaGlance` for the iOS app and iPhone / iPad Widget;
    - `group.com.songlabs.QuotaGlance.watch` for the Watch app and Watch complication.
 5. Select the shared `QuotaGlance` scheme and build an iOS 18 simulator destination.
 
@@ -190,9 +190,9 @@ Then validate both provider logins with test accounts, Trial/Pro/Free transition
 
 ```text
 Sources/QuotaGlanceCore/       shared models, access policy, decoders, formatting
-QuotaGlanceApp/                iPhone app, OAuth, Keychain, StoreKit, cache, Watch sync
+QuotaGlanceApp/                iPhone / iPad app, OAuth, Keychain, StoreKit, cache, Watch sync
 QuotaGlanceWatch/              Watch dashboard, snapshot cache, connectivity receiver
-QuotaGlanceWidget/             iPhone WidgetKit extension
+QuotaGlanceWidget/             iPhone / iPad WidgetKit extension
 QuotaGlanceWatchWidget/        circular, rectangular, and inline complications
 SharedUI/                      shared dark theme and brand assets
 Tests/QuotaGlanceCoreTests/    cross-platform Swift Testing tests and fixtures
