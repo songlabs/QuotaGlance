@@ -115,7 +115,7 @@ struct UpgradeView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 comparisonTitle("Feature", isHeader: true)
-                comparisonHeader("Free")
+                comparisonHeader("Free plan")
                 comparisonHeader("Pro")
             }
             .padding(.bottom, 6)
@@ -125,9 +125,9 @@ struct UpgradeView: View {
             Divider()
             comparisonRow("iPhone Weekly", free: .unavailable, pro: .included)
             Divider()
-            comparisonRow("Multiple accounts", free: .unavailable, pro: .included)
+            comparisonRow("iPhone multiple accounts", free: .unavailable, pro: .included)
             Divider()
-            comparisonRow("Widget", free: .unavailable, pro: .included)
+            comparisonRow("iPhone Widget", free: .unavailable, pro: .included)
             Divider()
             comparisonRow("Apple Watch 5H", free: .included, pro: .included)
             Divider()

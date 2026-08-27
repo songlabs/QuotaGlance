@@ -2789,6 +2789,40 @@
         }
       }
     },
+    "Free plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free"
+          }
+        }
+      }
+    },
     "Pro": {
       "localizations": {
         "en": {
@@ -4217,70 +4251,70 @@
         }
       }
     },
-    "Multiple accounts": {
+    "iPhone multiple accounts": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Multiple accounts"
+            "value": "iPhone multiple accounts"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "多账号"
+            "value": "iPhone 多账号"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "多帳號"
+            "value": "iPhone 多帳號"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "複数アカウント"
+            "value": "iPhone 複数アカウント"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "다중 계정"
+            "value": "iPhone 다중 계정"
           }
         }
       }
     },
-    "Widget": {
+    "iPhone Widget": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget"
+            "value": "iPhone Widget"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "小组件"
+            "value": "iPhone 小组件"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "小工具"
+            "value": "iPhone 小工具"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ウィジェット"
+            "value": "iPhone ウィジェット"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "위젯"
+            "value": "iPhone 위젯"
           }
         }
       }

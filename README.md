@@ -55,8 +55,8 @@ The Upgrade screen and product policy use the same comparison:
 | --- | :---: | :---: |
 | iPhone 5H | ✓ | ✓ |
 | iPhone Weekly | — | ✓ |
-| Multiple accounts | — | ✓ |
-| Widget | — | ✓ |
+| iPhone multiple accounts | — | ✓ |
+| iPhone Widget | — | ✓ |
 | Apple Watch 5H | ✓ | ✓ |
 | Apple Watch Weekly | — | ✓ |
 | Apple Watch multiple accounts | — | ✓ |
