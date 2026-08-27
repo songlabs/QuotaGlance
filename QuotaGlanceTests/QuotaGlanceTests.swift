@@ -81,14 +81,15 @@ final class QuotaGlanceTests: XCTestCase {
     }
 
     func testAutomaticRefreshOptionsAndEntitlements() {
-        XCTAssertEqual(AutomaticRefreshInterval.allCases.map(\.timeInterval), [
+        let expectedDurations: [TimeInterval?] = [
             nil,
             15 * 60,
             30 * 60,
             60 * 60,
             2 * 60 * 60,
             4 * 60 * 60,
-        ])
+        ]
+        XCTAssertEqual(AutomaticRefreshInterval.allCases.map(\.timeInterval), expectedDurations)
         XCTAssertEqual(AutomaticRefreshInterval.defaultInterval, .fourHours)
         XCTAssertEqual(AutomaticRefreshInterval.fifteenMinutes.effective(for: .free), .fourHours)
         XCTAssertEqual(AutomaticRefreshInterval.fifteenMinutes.effective(for: .trial), .fifteenMinutes)
