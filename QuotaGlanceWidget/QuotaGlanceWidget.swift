@@ -16,8 +16,12 @@ struct PhoneWidgetProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PhoneWidgetEntry>) -> Void) {
-        let entry = PhoneWidgetEntry(date: Date(), envelope: WidgetSnapshotReader.load())
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+        let now = Date()
+        let envelope = WidgetSnapshotReader.load()
+        let entries = (envelope?.timelineEntryDates(from: now) ?? [now]).map {
+            PhoneWidgetEntry(date: $0, envelope: envelope)
+        }
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
     }
 }
 

@@ -36,13 +36,7 @@ final class AppGroupSnapshotCache: SnapshotCaching {
     }
 
     func remove(accountIdentifier: UUID) throws {
-        let envelope = load()
-        try save(SnapshotEnvelope(
-            snapshots: envelope?.snapshots.filter { $0.accountIdentifier != accountIdentifier } ?? [],
-            displayLimit: envelope?.displayLimit ?? .fiveHour,
-            accounts: envelope?.accounts.filter { $0.id != accountIdentifier } ?? [],
-            watchAccountIdentifiers: envelope?.watchAccountIdentifiers.filter { $0 != accountIdentifier } ?? []
-        ))
+        try save(load()?.removingAccount(accountIdentifier) ?? SnapshotEnvelope(snapshots: []))
     }
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {

@@ -18,11 +18,15 @@ struct ComplicationProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ComplicationEntry>) -> Void) {
+        let now = Date()
         let envelope = SharedWatchSnapshotCache().load()
         let refreshInterval: TimeInterval = envelope == nil ? 60 : 15 * 60
+        let entries = (envelope?.timelineEntryDates(from: now) ?? [now]).map {
+            ComplicationEntry(date: $0, envelope: envelope)
+        }
         completion(Timeline(
-            entries: [ComplicationEntry(date: Date(), envelope: envelope)],
-            policy: .after(Date().addingTimeInterval(refreshInterval))
+            entries: entries,
+            policy: .after(now.addingTimeInterval(refreshInterval))
         ))
     }
 }

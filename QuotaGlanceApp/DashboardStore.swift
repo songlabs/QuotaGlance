@@ -312,9 +312,12 @@ final class DashboardStore {
     }
 
     private func refreshAllForWatch() async -> Bool {
-        let selected = Set(purchaseManager.hasProFeatures
-            ? watchAccountIdentifiers
-            : accounts.first.map { [$0.id] } ?? [])
+        await purchaseManager.refreshEntitlements()
+        let selected = WatchRefreshScope.accountIdentifiers(
+            accounts: accounts.map(\.id),
+            selectedAccountIdentifiers: watchAccountIdentifiers,
+            hasProFeatures: purchaseManager.hasProFeatures
+        )
         let eligibleAccounts = accounts.filter { selected.contains($0.id) }
         let connectedAccounts = eligibleAccounts.filter { states[$0.id]?.isConnected == true }
         guard !connectedAccounts.isEmpty else { return false }
