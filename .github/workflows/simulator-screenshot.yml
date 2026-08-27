@@ -13,7 +13,7 @@ concurrency:
 jobs:
   capture:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       APP_BUNDLE_ID: com.songlabs.QuotaGlance
       WATCH_BUNDLE_ID: com.songlabs.QuotaGlance.watchkitapp
@@ -36,39 +36,60 @@ jobs:
           selections=$(xcrun simctl list devices available -j | ruby -rjson -e '
             devices_by_runtime = JSON.parse(STDIN.read).fetch("devices")
 
-            choose = lambda do |platform, required_name|
-              candidates = devices_by_runtime.filter_map do |runtime, devices|
+            runtimes = lambda do |platform|
+              devices_by_runtime.filter_map do |runtime, devices|
                 version = runtime[%r{SimRuntime\.#{platform}-(\d+(?:-\d+)*)}, 1]
                 next unless version && version.split("-").first.to_i == 26
-                matches = devices.select do |device|
-                  required_name == "iPhone 17" ? device["name"] == required_name : device["name"].start_with?(required_name)
-                end
-                next if matches.empty?
-                device = matches.max_by { |item| item.fetch("name")[/\((\d+)mm\)/, 1].to_i }
-                [version.split("-").map(&:to_i), version.tr("-", "."), device]
-              end
-              candidates.max_by(&:first)
+                [version.split("-").map(&:to_i), version.tr("-", "."), devices]
+              end.sort_by(&:first).reverse
             end
 
-            phone = choose.call("iOS", "iPhone 17")
-            abort "Required simulator not found: iPhone 17" unless phone
-            watch = choose.call("watchOS", "Apple Watch Series 11")
-            abort "Required simulator not found: Apple Watch Series 11" unless watch
-            puts [phone[2].fetch("udid"), phone[2].fetch("name"), phone[1]].join("|")
-            puts [watch[2].fetch("udid"), watch[2].fetch("name"), watch[1]].join("|")
+            phone_names = ["iPhone 17 Pro Max", "iPhone 16 Pro Max", "iPhone 15 Pro Max", "iPhone 14 Pro Max"]
+            phone = runtimes.call("iOS").filter_map do |version, label, devices|
+              device = phone_names.filter_map { |name| devices.find { |item| item["name"] == name } }.first
+              device && [version, label, device]
+            end.first
+            abort "No supported 6.9-inch iPhone simulator found (iPhone 17 6.3-inch is not a fallback)" unless phone
+
+            ipad = runtimes.call("iOS").filter_map do |version, label, devices|
+              matches = devices.select { |item| item.fetch("name").match?(/iPad Pro.*13-inch/i) }
+              device = matches.max_by do |item|
+                name = item.fetch("name")
+                [name.match?(/M5/i) ? 2 : name.match?(/M4/i) ? 1 : 0, name]
+              end
+              device && [version, label, device]
+            end.first
+            abort "No iPad Pro 13-inch simulator found in an iOS 26 runtime" unless ipad
+
+            watch = runtimes.call("watchOS").filter_map do |version, label, devices|
+              matches = devices.select { |item| item.fetch("name").start_with?("Apple Watch Series 11") }
+              device = matches.max_by { |item| item.fetch("name")[/\((\d+)mm\)/, 1].to_i }
+              device && [version, label, device]
+            end.first
+            abort "No Apple Watch Series 11 simulator found in a watchOS 26 runtime" unless watch
+            abort "Largest Apple Watch Series 11 simulator is not 46mm" unless watch[2].fetch("name").include?("46mm")
+
+            [phone, ipad, watch].each do |selection|
+              puts [selection[2].fetch("udid"), selection[2].fetch("name"), selection[1]].join("|")
+            end
           ')
           IFS='|' read -r IPHONE_UDID IPHONE_NAME IOS_VERSION <<< "$(sed -n '1p' <<< "$selections")"
-          IFS='|' read -r WATCH_UDID WATCH_NAME WATCHOS_VERSION <<< "$(sed -n '2p' <<< "$selections")"
+          IFS='|' read -r IPAD_UDID IPAD_NAME IPADOS_VERSION <<< "$(sed -n '2p' <<< "$selections")"
+          IFS='|' read -r WATCH_UDID WATCH_NAME WATCHOS_VERSION <<< "$(sed -n '3p' <<< "$selections")"
           {
             echo "IPHONE_UDID=$IPHONE_UDID"
             echo "IPHONE_NAME=$IPHONE_NAME"
             echo "IOS_VERSION=$IOS_VERSION"
+            echo "IPAD_UDID=$IPAD_UDID"
+            echo "IPAD_NAME=$IPAD_NAME"
+            echo "IPADOS_VERSION=$IPADOS_VERSION"
             echo "WATCH_UDID=$WATCH_UDID"
             echo "WATCH_NAME=$WATCH_NAME"
             echo "WATCHOS_VERSION=$WATCHOS_VERSION"
           } >> "$GITHUB_ENV"
-          printf 'iPhone device: %s\niOS runtime: %s\niPhone UDID: %s\n' "$IPHONE_NAME" "$IOS_VERSION" "$IPHONE_UDID"
-          printf 'Watch device: %s\nwatchOS runtime: %s\nWatch UDID: %s\n' "$WATCH_NAME" "$WATCHOS_VERSION" "$WATCH_UDID"
+          printf 'iPhone: %s (iOS %s) %s\n' "$IPHONE_NAME" "$IOS_VERSION" "$IPHONE_UDID"
+          printf 'iPad: %s (iPadOS %s) %s\n' "$IPAD_NAME" "$IPADOS_VERSION" "$IPAD_UDID"
+          printf 'Watch: %s (watchOS %s) %s\n' "$WATCH_NAME" "$WATCHOS_VERSION" "$WATCH_UDID"
 
       - name: Pair and boot Simulators
         run: |
@@ -77,23 +98,21 @@ jobs:
           xcrun simctl list pairs | tee "$pairs_file"
           if ! ruby -e 'text = File.read(ARGV[0]); exit(text.include?(ARGV[1]) && text.include?(ARGV[2]) ? 0 : 1)' \
             "$pairs_file" "$IPHONE_UDID" "$WATCH_UDID"; then
-            echo "Pairing $WATCH_NAME ($WATCH_UDID) with $IPHONE_NAME ($IPHONE_UDID)"
             xcrun simctl pair "$WATCH_UDID" "$IPHONE_UDID"
             xcrun simctl list pairs | tee "$pairs_file"
           fi
           ruby -e 'text = File.read(ARGV[0]); abort "Target iPhone/Watch pair was not established" unless text.include?(ARGV[1]) && text.include?(ARGV[2])' \
             "$pairs_file" "$IPHONE_UDID" "$WATCH_UDID"
-          echo "pairing status: paired"
 
-          xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || test "$(xcrun simctl list devices | awk -v id="$IPHONE_UDID" '$0 ~ id { print $NF }')" = "(Booted)"
-          xcrun simctl bootstatus "$IPHONE_UDID" -b
-          xcrun simctl boot "$WATCH_UDID" 2>/dev/null || test "$(xcrun simctl list devices | awk -v id="$WATCH_UDID" '$0 ~ id { print $NF }')" = "(Booted)"
-          xcrun simctl bootstatus "$WATCH_UDID" -b
+          for udid in "$IPHONE_UDID" "$IPAD_UDID" "$WATCH_UDID"; do
+            xcrun simctl boot "$udid" 2>/dev/null || true
+            xcrun simctl bootstatus "$udid" -b
+          done
 
       - name: Resolve Swift packages
         run: xcodebuild -resolvePackageDependencies -project QuotaGlance.xcodeproj -scheme QuotaGlance
 
-      - name: Build Debug app for iPhone 17
+      - name: Build Debug app for iPhone 6.9-inch
         run: |
           set -o pipefail
           xcodebuild build \
@@ -104,136 +123,160 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/simulator-build.log"
 
-      - name: Install iPhone and Watch apps
+      - name: Install iPhone, iPad, and Watch apps
         run: |
           set -euo pipefail
           candidates_file="$RUNNER_TEMP/main-app-candidates.txt"
-          find "$RUNNER_TEMP/DerivedData/Build/Products" \
-            -type d -path '*Debug-iphonesimulator/QuotaGlance.app' -print > "$candidates_file"
+          find "$RUNNER_TEMP/DerivedData/Build/Products" -type d \
+            -path '*Debug-iphonesimulator/QuotaGlance.app' -print > "$candidates_file"
           test "$(wc -l < "$candidates_file" | tr -d ' ')" = 1
           APP_PATH=$(cat "$candidates_file")
-          built_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")
-          test "$built_bundle_id" = "$APP_BUNDLE_ID"
-          echo "App path: $APP_PATH"
-          echo "iPhone bundle ID: $built_bundle_id"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")" = "$APP_BUNDLE_ID"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
           watch_candidates="$RUNNER_TEMP/watch-app-candidates.txt"
           find "$APP_PATH/Watch" -mindepth 1 -maxdepth 1 -type d -name '*.app' -print > "$watch_candidates"
           test "$(wc -l < "$watch_candidates" | tr -d ' ')" = 1
           WATCH_APP_PATH=$(cat "$watch_candidates")
-          built_watch_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP_PATH/Info.plist")
-          test "$built_watch_bundle_id" = "$WATCH_BUNDLE_ID"
-          echo "Watch app path: $WATCH_APP_PATH"
-          echo "Watch bundle ID: $built_watch_bundle_id"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP_PATH/Info.plist")" = "$WATCH_BUNDLE_ID"
           echo "WATCH_APP_PATH=$WATCH_APP_PATH" >> "$GITHUB_ENV"
 
           xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
-
+          if ! xcrun simctl install "$IPAD_UDID" "$APP_PATH"; then
+            xcodebuild build -project QuotaGlance.xcodeproj -scheme QuotaGlance \
+              -configuration Debug -destination "platform=iOS Simulator,id=$IPAD_UDID" \
+              -derivedDataPath "$RUNNER_TEMP/DerivedData-iPad" CODE_SIGNING_ALLOWED=NO \
+              | tee "$RUNNER_TEMP/simulator-ipad-build.log"
+            IPAD_APP_PATH="$RUNNER_TEMP/DerivedData-iPad/Build/Products/Debug-iphonesimulator/QuotaGlance.app"
+            test -d "$IPAD_APP_PATH"
+            xcrun simctl install "$IPAD_UDID" "$IPAD_APP_PATH"
+            echo "IPAD_APP_PATH=$IPAD_APP_PATH" >> "$GITHUB_ENV"
+          fi
           if ! xcrun simctl get_app_container "$WATCH_UDID" "$WATCH_BUNDLE_ID" app >/dev/null 2>&1; then
             xcrun simctl install "$WATCH_UDID" "$WATCH_APP_PATH"
           fi
 
-      - name: Capture required screenshot scenarios
+      - name: Capture submission and QA screenshots
         run: |
           set -euo pipefail
-          mkdir -p screenshots/iphone screenshots/watch
+          mkdir -p screenshots/appstore/iphone-6.9 screenshots/appstore/ipad-13 \
+            screenshots/appstore/watch screenshots/iap-review screenshots/qa "$RUNNER_TEMP/screenshots"
 
-          capture_iphone() {
-            local filename=$1
-            shift
-            xcrun simctl terminate "$IPHONE_UDID" "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
-            xcrun simctl uninstall "$IPHONE_UDID" "$APP_BUNDLE_ID" >/dev/null 2>&1 || true
-            xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
-            xcrun simctl launch "$IPHONE_UDID" "$APP_BUNDLE_ID" --screenshot-mode "$@"
+          capture() {
+            local udid=$1 bundle_id=$2 app_path=$3 output=$4
+            shift 4
+            local png="$RUNNER_TEMP/screenshots/$(basename "${output%.jpg}")-$RANDOM.png"
+            xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
+            xcrun simctl uninstall "$udid" "$bundle_id" >/dev/null 2>&1 || true
+            xcrun simctl install "$udid" "$app_path"
+            xcrun simctl launch "$udid" "$bundle_id" --screenshot-mode "$@"
             sleep 4
-            xcrun simctl io "$IPHONE_UDID" screenshot "screenshots/iphone/$filename"
-            test -s "screenshots/iphone/$filename"
+            xcrun simctl io "$udid" screenshot "$png"
+            sips -s format jpeg -s formatOptions 100 "$png" --out "$output" >/dev/null
+            rm "$png"
+            test -s "$output"
           }
+          capture_iphone() { capture "$IPHONE_UDID" "$APP_BUNDLE_ID" "$APP_PATH" "$@"; }
+          capture_ipad() { capture "$IPAD_UDID" "$APP_BUNDLE_ID" "${IPAD_APP_PATH:-$APP_PATH}" "$@"; }
+          capture_watch() { capture "$WATCH_UDID" "$WATCH_BUNDLE_ID" "$WATCH_APP_PATH" "$@"; }
 
-          capture_watch() {
-            local filename=$1
-            shift
-            xcrun simctl terminate "$WATCH_UDID" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
-            xcrun simctl uninstall "$WATCH_UDID" "$WATCH_BUNDLE_ID" >/dev/null 2>&1 || true
-            xcrun simctl install "$WATCH_UDID" "$WATCH_APP_PATH"
-            xcrun simctl launch "$WATCH_UDID" "$WATCH_BUNDLE_ID" --screenshot-mode "$@"
-            sleep 4
-            xcrun simctl io "$WATCH_UDID" screenshot "screenshots/watch/$filename"
-            test -s "screenshots/watch/$filename"
-          }
+          capture_iphone screenshots/appstore/iphone-6.9/01-dashboard-pro.jpg --screenshot-screen dashboard --screenshot-access pro
+          capture_iphone screenshots/appstore/iphone-6.9/02-settings-pro.jpg --screenshot-screen settings --screenshot-access pro
+          capture_iphone screenshots/appstore/iphone-6.9/03-display-watch-pro.jpg --screenshot-screen settings --screenshot-access pro --screenshot-position display
+          capture_iphone screenshots/appstore/iphone-6.9/04-trial.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position trial
+          capture_iphone screenshots/appstore/iphone-6.9/05-lifetime-pro.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position purchase
 
-          capture_iphone iphone17-dashboard-pro.png \
-            --screenshot-screen dashboard --screenshot-access pro
-          capture_iphone iphone17-settings-top-pro.png \
-            --screenshot-screen settings --screenshot-access pro
-          capture_iphone iphone17-settings-display-watch-pro.png \
-            --screenshot-screen settings --screenshot-access pro --screenshot-position display
-          capture_iphone iphone17-upgrade-free-trial-available.png \
-            --screenshot-screen upgrade --screenshot-access free
-          capture_iphone iphone17-upgrade-free-comparison-purchase.png \
-            --screenshot-screen upgrade --screenshot-access free --screenshot-position comparison
-          capture_iphone iphone17-upgrade-trial-active.png \
-            --screenshot-screen upgrade --screenshot-access trial
-          capture_iphone iphone17-upgrade-trial-expired.png \
-            --screenshot-screen upgrade --screenshot-access trial-expired
-          capture_iphone iphone17-upgrade-lifetime-pro.png \
-            --screenshot-screen upgrade --screenshot-access pro
+          capture_ipad screenshots/appstore/ipad-13/01-dashboard-pro.jpg --screenshot-screen dashboard --screenshot-access pro
+          capture_ipad screenshots/appstore/ipad-13/02-settings-pro.jpg --screenshot-screen settings --screenshot-access pro
+          capture_ipad screenshots/appstore/ipad-13/03-display-watch-pro.jpg --screenshot-screen settings --screenshot-access pro --screenshot-position display
+          capture_ipad screenshots/appstore/ipad-13/04-trial.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position trial
+          capture_ipad screenshots/appstore/ipad-13/05-lifetime-pro.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position purchase
 
-          capture_watch watch-series11-dashboard-free.png --screenshot-access free
-          capture_watch watch-series11-dashboard-pro.png --screenshot-access pro
-          capture_watch watch-series11-dashboard-pro-refresh.png \
-            --screenshot-access pro --screenshot-position refresh
+          capture_watch screenshots/appstore/watch/01-dashboard-pro.jpg --screenshot-access pro
+          capture_watch screenshots/appstore/watch/02-dashboard-pro-refresh.jpg --screenshot-access pro --screenshot-position refresh
+          capture_watch screenshots/appstore/watch/03-dashboard-free.jpg --screenshot-access free
 
-      - name: Validate required screenshot inventory
+          capture_iphone screenshots/iap-review/trial-review.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position trial
+          capture_iphone screenshots/iap-review/lifetime-pro-review.jpg --screenshot-screen upgrade --screenshot-access free --screenshot-position purchase
+
+          capture_iphone screenshots/qa/iphone-trial-active.jpg --screenshot-screen upgrade --screenshot-access trial
+          capture_iphone screenshots/qa/iphone-trial-expired.jpg --screenshot-screen upgrade --screenshot-access trial-expired
+          capture_iphone screenshots/qa/iphone-lifetime-active.jpg --screenshot-screen upgrade --screenshot-access pro
+
+      - name: Validate submission screenshot inventory and dimensions
         run: |
           set -euo pipefail
-          expected=(
-            screenshots/iphone/iphone17-dashboard-pro.png
-            screenshots/iphone/iphone17-settings-top-pro.png
-            screenshots/iphone/iphone17-settings-display-watch-pro.png
-            screenshots/iphone/iphone17-upgrade-free-trial-available.png
-            screenshots/iphone/iphone17-upgrade-free-comparison-purchase.png
-            screenshots/iphone/iphone17-upgrade-trial-active.png
-            screenshots/iphone/iphone17-upgrade-trial-expired.png
-            screenshots/iphone/iphone17-upgrade-lifetime-pro.png
-            screenshots/watch/watch-series11-dashboard-free.png
-            screenshots/watch/watch-series11-dashboard-pro.png
-            screenshots/watch/watch-series11-dashboard-pro-refresh.png
-          )
+          expected_iphone=(01-dashboard-pro.jpg 02-settings-pro.jpg 03-display-watch-pro.jpg 04-trial.jpg 05-lifetime-pro.jpg)
+          expected_ipad=(01-dashboard-pro.jpg 02-settings-pro.jpg 03-display-watch-pro.jpg 04-trial.jpg 05-lifetime-pro.jpg)
+          expected_watch=(01-dashboard-pro.jpg 02-dashboard-pro-refresh.jpg 03-dashboard-free.jpg)
+          expected_iap=(trial-review.jpg lifetime-pro-review.jpg)
 
-          for screenshot in "${expected[@]}"; do
-            test -s "$screenshot"
+          validate_directory() {
+            local directory=$1 expected_count=$2
+            shift 2
+            local expected=("$@") actual
+            for filename in "${expected[@]}"; do test -s "$directory/$filename"; done
+            actual=$(find "$directory" -maxdepth 1 -type f -name '*.jpg' | wc -l | tr -d ' ')
+            test "$actual" = "$expected_count"
+          }
+          dimensions() {
+            local file=$1 allowed=$2 width height size
+            width=$(sips -g pixelWidth "$file" | awk '/pixelWidth:/ {print $2}')
+            height=$(sips -g pixelHeight "$file" | awk '/pixelHeight:/ {print $2}')
+            size="${width}x${height}"
+            case " $allowed " in *" $size "*) ;; *) echo "Invalid native dimensions $size: $file"; exit 1;; esac
+            echo "$size $file"
+          }
+
+          validate_directory screenshots/appstore/iphone-6.9 5 "${expected_iphone[@]}"
+          validate_directory screenshots/appstore/ipad-13 5 "${expected_ipad[@]}"
+          validate_directory screenshots/appstore/watch 3 "${expected_watch[@]}"
+          validate_directory screenshots/iap-review 2 "${expected_iap[@]}"
+          test "$(find screenshots/appstore screenshots/iap-review -type f -name '*.jpg' | wc -l | tr -d ' ')" = 15
+
+          for file in screenshots/appstore/iphone-6.9/*.jpg screenshots/iap-review/*.jpg; do
+            dimensions "$file" '1260x2736 1290x2796 1320x2868'
           done
-
-          actual_count=$(find screenshots -type f -name '*.png' | wc -l | tr -d ' ')
-          test "$actual_count" = "${#expected[@]}"
-          echo "Screenshot inventory:"
-          find screenshots -type f -name '*.png' -print | sort
-          find screenshots -type f -name '*.png' -exec file {} + | sort | tee "$RUNNER_TEMP/screenshot-files.log"
+          for file in screenshots/appstore/ipad-13/*.jpg; do dimensions "$file" '2064x2752 2048x2732'; done
+          for file in screenshots/appstore/watch/*.jpg; do dimensions "$file" '416x496'; done
+          find screenshots/appstore screenshots/iap-review -type f -name '*.jpg' -exec file {} + | sort \
+            | tee "$RUNNER_TEMP/screenshot-files.log"
 
       - name: Collect Simulator diagnostics
         if: always()
         run: |
           xcrun simctl list > "$RUNNER_TEMP/simctl-list.log" || true
           xcrun simctl list pairs > "$RUNNER_TEMP/simctl-pairs-final.log" || true
-          if [[ -n "${IPHONE_UDID:-}" ]]; then
-            xcrun simctl spawn "$IPHONE_UDID" log show --last 10m --style compact \
-              --predicate 'process == "QuotaGlance"' > "$RUNNER_TEMP/quota-glance-iphone.log" || true
-          fi
-          if [[ -n "${WATCH_UDID:-}" ]]; then
-            xcrun simctl spawn "$WATCH_UDID" log show --last 10m --style compact \
-              --predicate 'process == "QuotaGlance Watch App"' > "$RUNNER_TEMP/quota-glance-watch.log" || true
-          fi
+          for spec in "$IPHONE_UDID|QuotaGlance|iphone" "$IPAD_UDID|QuotaGlance|ipad" "$WATCH_UDID|QuotaGlance Watch App|watch"; do
+            IFS='|' read -r udid process suffix <<< "$spec"
+            xcrun simctl spawn "$udid" log show --last 15m --style compact --predicate "process == '$process'" \
+              > "$RUNNER_TEMP/quota-glance-$suffix.log" || true
+          done
 
-      - name: Upload screenshots
+      - name: Upload App Store screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: quota-glance-appstore-screenshots
+          path: screenshots/appstore/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload IAP review screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: quota-glance-iap-review-screenshots
+          path: screenshots/iap-review/
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload QA screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quota-glance-simulator-screenshots
-          path: screenshots/
+          name: quota-glance-screenshot-qa
+          path: screenshots/qa/
           retention-days: 7
-          if-no-files-found: error
+          if-no-files-found: ignore
 
       - name: Upload diagnostics
         if: always()
