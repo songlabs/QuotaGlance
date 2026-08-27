@@ -25,6 +25,28 @@ struct UsageModelsTests {
         #expect(envelope.effectiveDisplayLimit(at: expiry) == .fiveHour)
     }
 
+    @Test("Trial timelines include an expiry entry")
+    func trialTimelineEntries() {
+        let now = Date(timeIntervalSince1970: 9_000)
+        let expiry = Date(timeIntervalSince1970: 10_000)
+        let trial = SnapshotEnvelope(
+            snapshots: [],
+            accessLevel: .trial,
+            proAccessExpiresAt: expiry
+        )
+
+        #expect(trial.timelineEntryDates(from: now) == [now, expiry])
+        #expect(trial.timelineEntryDates(from: expiry) == [expiry])
+        #expect(SnapshotEnvelope(snapshots: [], accessLevel: .pro).timelineEntryDates(from: now) == [now])
+    }
+
+    @Test("Settings membership routes Free and Trial, but not Pro, to Upgrade")
+    func settingsMembershipRouting() {
+        #expect(SettingsUpgradeRouting.shouldPresentMembership(for: .free))
+        #expect(SettingsUpgradeRouting.shouldPresentMembership(for: .trial))
+        #expect(!SettingsUpgradeRouting.shouldPresentMembership(for: .pro))
+    }
+
     @Test("StoreKit purchase dates resolve Free, Trial, and Pro states")
     func accessResolution() {
         let day: TimeInterval = 24 * 60 * 60
@@ -264,6 +286,65 @@ struct UsageModelsTests {
         #expect(firstTwo == [firstID, secondID])
         #expect(WatchAccountSelection.adding(thirdID, to: firstTwo) == nil)
         #expect(WatchAccountSelection.normalized([firstID, firstID, secondID, thirdID]) == [firstID, secondID])
+    }
+
+    @Test("Watch refresh scope follows current entitlement")
+    func watchRefreshScope() {
+        let firstID = UUID()
+        let secondID = UUID()
+        let accounts = [firstID, secondID]
+        let selection = [secondID]
+
+        #expect(WatchRefreshScope.accountIdentifiers(
+            accounts: accounts,
+            selectedAccountIdentifiers: selection,
+            hasProFeatures: false
+        ) == [firstID])
+        #expect(WatchRefreshScope.accountIdentifiers(
+            accounts: accounts,
+            selectedAccountIdentifiers: selection,
+            hasProFeatures: true
+        ) == [secondID])
+
+        let expiredAccess = AccessLevel.resolve(
+            hasLifetimePurchase: false,
+            trialPurchaseDate: Date(timeIntervalSince1970: 0),
+            trialDuration: 100,
+            now: Date(timeIntervalSince1970: 101)
+        )
+        #expect(expiredAccess == .free)
+        #expect(WatchRefreshScope.accountIdentifiers(
+            accounts: accounts,
+            selectedAccountIdentifiers: selection,
+            hasProFeatures: expiredAccess.hasProFeatures
+        ) == [firstID])
+    }
+
+    @Test("Removing an account preserves Trial entitlement metadata")
+    func removingAccountPreservesEntitlement() {
+        let removedID = UUID()
+        let remainingID = UUID()
+        let expiry = Date(timeIntervalSince1970: 10_000)
+        let envelope = SnapshotEnvelope(
+            snapshots: [
+                UsageSnapshot(provider: .codex, accountIdentifier: removedID, session: nil, weekly: nil, updatedAt: .distantPast),
+                UsageSnapshot(provider: .claude, accountIdentifier: remainingID, session: nil, weekly: nil, updatedAt: .distantPast),
+            ],
+            accounts: [
+                AccountDisplayMetadata(id: removedID, provider: .codex, ordinal: 1, displayName: "removed"),
+                AccountDisplayMetadata(id: remainingID, provider: .claude, ordinal: 1, displayName: "remaining"),
+            ],
+            watchAccountIdentifiers: [removedID, remainingID],
+            accessLevel: .trial,
+            proAccessExpiresAt: expiry
+        )
+
+        let remaining = envelope.removingAccount(removedID)
+        #expect(remaining.snapshots.map(\.accountIdentifier) == [remainingID])
+        #expect(remaining.accounts.map(\.id) == [remainingID])
+        #expect(remaining.watchAccountIdentifiers == [remainingID])
+        #expect(remaining.accessLevel == .trial)
+        #expect(remaining.proAccessExpiresAt == expiry)
     }
 
     @Test("One-account Watch presentation keeps independent 5H and Weekly reset dates")

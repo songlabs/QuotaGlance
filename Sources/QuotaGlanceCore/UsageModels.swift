@@ -314,6 +314,22 @@ public enum WatchSyncMessageKey {
     public static let refreshSucceeded = "refreshSucceeded"
 }
 
+public enum SettingsUpgradeRouting {
+    public static func shouldPresentMembership(for accessLevel: AccessLevel) -> Bool {
+        accessLevel != .pro
+    }
+}
+
+public enum WatchRefreshScope {
+    public static func accountIdentifiers(
+        accounts: [UUID],
+        selectedAccountIdentifiers: [UUID],
+        hasProFeatures: Bool
+    ) -> Set<UUID> {
+        Set(hasProFeatures ? selectedAccountIdentifiers : Array(accounts.prefix(1)))
+    }
+}
+
 public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     public static let currentVersion = 1
 
@@ -349,6 +365,25 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         case .pro: true
         case .trial: proAccessExpiresAt.map { date < $0 } ?? false
         }
+    }
+
+    public func timelineEntryDates(from date: Date) -> [Date] {
+        guard accessLevel == .trial,
+              let proAccessExpiresAt,
+              proAccessExpiresAt > date else { return [date] }
+        return [date, proAccessExpiresAt]
+    }
+
+    public func removingAccount(_ accountIdentifier: UUID) -> SnapshotEnvelope {
+        SnapshotEnvelope(
+            version: version,
+            snapshots: snapshots.filter { $0.accountIdentifier != accountIdentifier },
+            displayLimit: displayLimit,
+            accounts: accounts.filter { $0.id != accountIdentifier },
+            watchAccountIdentifiers: watchAccountIdentifiers.filter { $0 != accountIdentifier },
+            accessLevel: accessLevel,
+            proAccessExpiresAt: proAccessExpiresAt
+        )
     }
 
     public func snapshot(for provider: AIProvider) -> UsageSnapshot? {

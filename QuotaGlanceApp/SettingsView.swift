@@ -321,9 +321,3 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 }
-
-enum SettingsUpgradeRouting {
-    static func shouldPresentMembership(for accessLevel: AccessLevel) -> Bool {
-        accessLevel != .pro
-    }
-}
