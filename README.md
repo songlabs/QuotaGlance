@@ -154,6 +154,15 @@ Codex / Claude OAuth + Usage API (iOS app only)
 
 OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain items with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The App Group cache, Widget, WatchConnectivity payload, Watch cache, and complications handle `SnapshotEnvelope` data: provider/account display metadata, quota windows, reset dates, update dates, selected Watch accounts, display limit, and access level. They do not receive OAuth credentials.
 
+## Privacy and Terms
+
+QuotaGlance is an independent application and is not affiliated with or endorsed by OpenAI or Anthropic. Provider credentials remain in the iPhone or iPad Keychain and are used directly with the selected provider; they are not sent to WidgetKit, Apple Watch, or a QuotaGlance-owned backend. The app contains no advertising, analytics, or tracking SDKs.
+
+Provider quota and reset values depend on compatibility-sensitive third-party services. Values may be delayed, unavailable, incomplete, or changed by the provider, and QuotaGlance does not create a missing reset time. Widget and complication refresh timing is controlled by Apple platforms and is not guaranteed to occur at an exact interval.
+
+- [Privacy Policy](Docs/PrivacyPolicy.md)
+- [Terms of Use](Docs/TermsOfUse.md)
+
 ## Current verification boundary
 
 The shared `QuotaGlanceCore` package can be built and tested cross-platform. StoreKit entitlement initialization gates the first shared snapshot publication. Published Trial snapshots include the verified expiry date, allowing the Widget, Watch app, and complication to fail back to Free independently; all Watch surfaces derive their accounts from the same at-most-two-account selection. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iOS app together with its iPhone / iPad Widget, Watch app, and Watch complication.
