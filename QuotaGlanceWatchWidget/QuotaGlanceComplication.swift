@@ -14,8 +14,8 @@ enum ComplicationLimitOption: String, AppEnum {
     case fiveHour
     case weekly
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Limit"
-    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Limit"
+    static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .fiveHour: "5H",
         .weekly: "Weekly",
     ]
@@ -40,8 +40,8 @@ struct ComplicationAccountEntity: AppEntity, Hashable {
     let providerName: String
     let displayName: String
 
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Account"
-    static var defaultQuery = ComplicationAccountQuery()
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Account"
+    static let defaultQuery = ComplicationAccountQuery()
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(providerName) / \(displayName)")
@@ -74,8 +74,8 @@ struct ComplicationAccountQuery: EntityQuery {
 }
 
 struct ComplicationConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Configure Circular Complication"
-    static var description = IntentDescription(
+    static let title: LocalizedStringResource = "Configure Circular Complication"
+    static let description = IntentDescription(
         "Choose an account and quota limit for this circular complication."
     )
 
