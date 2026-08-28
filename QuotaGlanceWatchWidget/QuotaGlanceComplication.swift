@@ -1,3 +1,4 @@
+import AppIntents
 import QuotaGlanceCore
 import SwiftUI
 import WidgetKit
@@ -5,29 +6,166 @@ import WidgetKit
 struct ComplicationEntry: TimelineEntry {
     let date: Date
     let envelope: SnapshotEnvelope?
+    let configuredAccountIdentifier: UUID?
+    let configuredDisplayLimit: QuotaDisplayLimit?
 }
 
-struct ComplicationProvider: TimelineProvider {
+enum ComplicationLimitOption: String, AppEnum {
+    case fiveHour
+    case weekly
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Limit"
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .fiveHour: "5H",
+        .weekly: "Weekly",
+    ]
+
+    var displayLimit: QuotaDisplayLimit {
+        switch self {
+        case .fiveHour: .fiveHour
+        case .weekly: .weekly
+        }
+    }
+
+    init(_ displayLimit: QuotaDisplayLimit) {
+        switch displayLimit {
+        case .fiveHour: self = .fiveHour
+        case .weekly: self = .weekly
+        }
+    }
+}
+
+struct ComplicationAccountEntity: AppEntity, Hashable {
+    let id: String
+    let providerName: String
+    let displayName: String
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Account"
+    static var defaultQuery = ComplicationAccountQuery()
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(providerName) / \(displayName)")
+    }
+
+    init(_ account: AccountUsagePresentation) {
+        id = account.accountIdentifier?.uuidString ?? account.id
+        providerName = account.provider.displayName
+        displayName = account.displayName
+    }
+}
+
+struct ComplicationAccountQuery: EntityQuery {
+    func entities(for identifiers: [ComplicationAccountEntity.ID]) async throws -> [ComplicationAccountEntity] {
+        let entities = availableEntities()
+        return identifiers.compactMap { identifier in
+            entities.first { $0.id == identifier }
+        }
+    }
+
+    func suggestedEntities() async throws -> [ComplicationAccountEntity] {
+        availableEntities()
+    }
+
+    private func availableEntities(at date: Date = Date()) -> [ComplicationAccountEntity] {
+        SharedWatchSnapshotCache().load()?
+            .watchAccountPresentations(at: date)
+            .map(ComplicationAccountEntity.init) ?? []
+    }
+}
+
+struct ComplicationConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Configure Circular Complication"
+    static var description = IntentDescription(
+        "Choose an account and quota limit for this circular complication."
+    )
+
+    @Parameter(title: "Account")
+    var account: ComplicationAccountEntity?
+
+    @Parameter(title: "Limit")
+    var limit: ComplicationLimitOption?
+
+    init() {}
+
+    init(account: ComplicationAccountEntity?, limit: ComplicationLimitOption?) {
+        self.account = account
+        self.limit = limit
+    }
+}
+
+struct ComplicationProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> ComplicationEntry {
-        ComplicationEntry(date: Date(), envelope: ComplicationPreview.dualEnvelope)
+        ComplicationEntry(
+            date: Date(),
+            envelope: ComplicationPreview.dualEnvelope,
+            configuredAccountIdentifier: nil,
+            configuredDisplayLimit: nil
+        )
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (ComplicationEntry) -> Void) {
+    func snapshot(
+        for configuration: ComplicationConfigurationIntent,
+        in context: Context
+    ) async -> ComplicationEntry {
         let envelope = SharedWatchSnapshotCache().load() ?? (context.isPreview ? ComplicationPreview.dualEnvelope : nil)
-        completion(ComplicationEntry(date: Date(), envelope: envelope))
+        return entry(date: Date(), envelope: envelope, configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<ComplicationEntry>) -> Void) {
+    func timeline(
+        for configuration: ComplicationConfigurationIntent,
+        in context: Context
+    ) async -> Timeline<ComplicationEntry> {
         let now = Date()
         let envelope = SharedWatchSnapshotCache().load()
         let refreshInterval: TimeInterval = envelope == nil ? 60 : 15 * 60
         let entries = (envelope?.timelineEntryDates(from: now) ?? [now]).map {
-            ComplicationEntry(date: $0, envelope: envelope)
+            entry(date: $0, envelope: envelope, configuration: configuration)
         }
-        completion(Timeline(
+        return Timeline(
             entries: entries,
             policy: .after(now.addingTimeInterval(refreshInterval))
-        ))
+        )
+    }
+
+    func recommendations() -> [AppIntentRecommendation<ComplicationConfigurationIntent>] {
+        if #available(watchOS 26.0, *) {
+            return []
+        }
+        guard let envelope = SharedWatchSnapshotCache().load() else { return [] }
+        let date = Date()
+        let accounts = envelope.watchAccountPresentations(at: date).map(ComplicationAccountEntity.init)
+        let limits: [QuotaDisplayLimit] = envelope.hasProFeatures(at: date)
+            ? QuotaDisplayLimit.allCases
+            : [.fiveHour]
+        return accounts.flatMap { account in
+            limits.map { limit in
+                let intent = ComplicationConfigurationIntent(
+                    account: account,
+                    limit: ComplicationLimitOption(limit)
+                )
+                let limitName = switch limit {
+                case .fiveHour: String(localized: "5H")
+                case .weekly: String(localized: "Weekly")
+                }
+                return AppIntentRecommendation(
+                    intent: intent,
+                    description: "\(account.providerName) / \(account.displayName) · \(limitName)"
+                )
+            }
+        }
+    }
+
+    private func entry(
+        date: Date,
+        envelope: SnapshotEnvelope?,
+        configuration: ComplicationConfigurationIntent
+    ) -> ComplicationEntry {
+        ComplicationEntry(
+            date: date,
+            envelope: envelope,
+            configuredAccountIdentifier: configuration.account.flatMap { UUID(uuidString: $0.id) },
+            configuredDisplayLimit: configuration.limit?.displayLimit
+        )
     }
 }
 
@@ -35,7 +173,11 @@ struct QuotaGlanceComplication: Widget {
     let kind = "QuotaGlanceComplication"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: ComplicationProvider()) { entry in
+        AppIntentConfiguration(
+            kind: kind,
+            intent: ComplicationConfigurationIntent.self,
+            provider: ComplicationProvider()
+        ) { entry in
             ComplicationView(entry: entry)
                 .containerBackground(for: .widget) { Color.clear }
         }
@@ -69,10 +211,12 @@ private struct ComplicationView: View {
     private var hasProFeatures: Bool { entry.envelope?.hasProFeatures(at: entry.date) ?? false }
 
     private var circular: some View {
-        let account = selectedAccounts.first
-        let displayLimit = entry.envelope?.effectiveDisplayLimit(at: entry.date) ?? .fiveHour
-        let window = account?.snapshot.flatMap { displayLimit.window(in: $0) }
-        let remaining = window?.remainingPercentage
+        let selection = entry.envelope?.circularComplicationSelection(
+            configuredAccountIdentifier: entry.configuredAccountIdentifier,
+            configuredDisplayLimit: entry.configuredDisplayLimit,
+            at: entry.date
+        ) ?? CircularComplicationSelection(account: nil, displayLimit: .fiveHour)
+        let remaining = selection.window?.remainingPercentage
         return Gauge(value: remaining ?? 0, in: 0...100) {
             QuotaGlanceBrandIcon(size: 10)
                 .widgetAccentable()
@@ -82,9 +226,9 @@ private struct ComplicationView: View {
                 .monospacedDigit()
         }
         .gaugeStyle(.accessoryCircularCapacity)
-        .tint(account?.provider.accent ?? QuotaGlanceTheme.brandAccent)
-        .accessibilityLabel(limitAccessibilityLabel(displayLimit))
-        .accessibilityValue(accessibilityValue(account?.snapshot))
+        .tint(selection.account?.provider.accent ?? QuotaGlanceTheme.brandAccent)
+        .accessibilityLabel(limitAccessibilityLabel(selection.displayLimit))
+        .accessibilityValue(accessibilityValue(selection))
     }
 
     @ViewBuilder
@@ -218,10 +362,6 @@ private struct ComplicationView: View {
         return values.isEmpty ? "QuotaGlance —" : values.joined(separator: " · ")
     }
 
-    private var updatedTime: String {
-        compactDateTime(latestSnapshot(in: selectedAccounts)?.updatedAt)
-    }
-
     private func latestSnapshot(in accounts: [AccountUsagePresentation]) -> UsageSnapshot? {
         accounts.compactMap(\.snapshot).max { $0.updatedAt < $1.updatedAt }
     }
@@ -241,12 +381,12 @@ private struct ComplicationView: View {
         date.map { UsageFormatting.compactDateTime($0) } ?? "—"
     }
 
-    private func accessibilityValue(_ snapshot: UsageSnapshot?) -> String {
-        let displayLimit = entry.envelope?.displayLimit ?? .fiveHour
-        let remaining = snapshot.flatMap { displayLimit.window(in: $0) }.map {
+    private func accessibilityValue(_ selection: CircularComplicationSelection) -> String {
+        let remaining = selection.window.map {
             String(localized: "percent.value", defaultValue: "\($0.roundedRemainingPercentage) percent")
         } ?? String(localized: "not available")
-        return String(localized: "remaining.updated", defaultValue: "\(remaining), updated \(updatedTime)")
+        let updated = compactDateTime(selection.account?.snapshot?.updatedAt)
+        return String(localized: "remaining.updated", defaultValue: "\(remaining), updated \(updated)")
     }
 
     private func limitAccessibilityLabel(_ limit: QuotaDisplayLimit) -> String {
@@ -299,17 +439,32 @@ private enum ComplicationPreview {
 #Preview(as: .accessoryRectangular) {
     QuotaGlanceComplication()
 } timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.singleEnvelope)
+    ComplicationEntry(
+        date: Date(),
+        envelope: ComplicationPreview.singleEnvelope,
+        configuredAccountIdentifier: nil,
+        configuredDisplayLimit: nil
+    )
 }
 
 #Preview(as: .accessoryRectangular) {
     QuotaGlanceComplication()
 } timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.dualEnvelope)
+    ComplicationEntry(
+        date: Date(),
+        envelope: ComplicationPreview.dualEnvelope,
+        configuredAccountIdentifier: nil,
+        configuredDisplayLimit: nil
+    )
 }
 
 #Preview(as: .accessoryCircular) {
     QuotaGlanceComplication()
 } timeline: {
-    ComplicationEntry(date: Date(), envelope: ComplicationPreview.singleEnvelope)
+    ComplicationEntry(
+        date: Date(),
+        envelope: ComplicationPreview.singleEnvelope,
+        configuredAccountIdentifier: nil,
+        configuredDisplayLimit: nil
+    )
 }

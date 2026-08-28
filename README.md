@@ -62,7 +62,9 @@ The Upgrade screen and product policy use the same comparison:
 | Apple Watch multiple accounts | — | ✓ |
 | Automatic data refresh | 4 hours fixed | Off / 15 min / 30 min / 1 hour / 2 hours / 4 hours |
 
-An active 7-day Trial has the same feature access as Pro. In Free, the iPhone / iPad Widget shows an Upgrade prompt instead of quota data, while the Watch receives only the first entitled account, the 5H display limit, and no Weekly rows. Pro can select up to two Watch accounts and choose the Widget/Watch quota window.
+An active 7-day Trial has the same feature access as Pro. In Free, the iPhone / iPad Widget shows an Upgrade prompt instead of quota data, while the Watch receives only the first entitled account, the 5H display limit, and no Weekly rows. Pro and Trial can select up to two Watch accounts and choose the Widget/Watch quota window.
+
+Each circular Apple Watch complication is independently configurable. Trial and Pro can choose one of the accounts allowed by the iPhone's Apple Watch display-account setting and select either 5H or Weekly for each circular complication instance, so multiple QuotaGlance circular complications on the same Watch face can show different accounts or quota windows. An unconfigured circular complication falls back to the first currently allowed Watch account and the default Widget/Watch quota setting. Free always resolves to the first entitled account and 5H, including when an older saved configuration names another account or Weekly. Rectangular complications keep their existing single/two-account layouts with both available windows (Weekly remains hidden in Free), while inline complications keep using the default Widget/Watch quota setting.
 
 ## Data refresh
 

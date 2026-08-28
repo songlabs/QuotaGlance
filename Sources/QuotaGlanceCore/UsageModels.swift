@@ -341,6 +341,20 @@ public enum WatchAccountSelection {
     }
 }
 
+public struct CircularComplicationSelection: Equatable, Sendable {
+    public let account: AccountUsagePresentation?
+    public let displayLimit: QuotaDisplayLimit
+
+    public init(account: AccountUsagePresentation?, displayLimit: QuotaDisplayLimit) {
+        self.account = account
+        self.displayLimit = displayLimit
+    }
+
+    public var window: UsageWindow? {
+        account?.snapshot.flatMap { displayLimit.window(in: $0) }
+    }
+}
+
 public enum WatchSyncMessageKey {
     public static let snapshotEnvelope = "snapshotEnvelope"
     public static let refreshUsage = "refreshUsage"
@@ -480,6 +494,24 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
 
     public func effectiveDisplayLimit(at date: Date = Date()) -> QuotaDisplayLimit {
         hasProFeatures(at: date) ? displayLimit : .fiveHour
+    }
+
+    public func circularComplicationSelection(
+        configuredAccountIdentifier: UUID?,
+        configuredDisplayLimit: QuotaDisplayLimit?,
+        at date: Date = Date()
+    ) -> CircularComplicationSelection {
+        let availableAccounts = watchAccountPresentations(at: date)
+        let configuredAccount = configuredAccountIdentifier.flatMap { identifier in
+            availableAccounts.first { $0.accountIdentifier == identifier }
+        }
+        let resolvedLimit = hasProFeatures(at: date)
+            ? (configuredDisplayLimit ?? effectiveDisplayLimit(at: date))
+            : .fiveHour
+        return CircularComplicationSelection(
+            account: configuredAccount ?? availableAccounts.first,
+            displayLimit: resolvedLimit
+        )
     }
 
     enum CodingKeys: String, CodingKey {

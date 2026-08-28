@@ -428,6 +428,172 @@ struct UsageModelsTests {
         #expect(envelope.effectiveDisplayLimit() == .fiveHour)
     }
 
+    @Test("Unconfigured circular complication uses the first allowed account and effective global limit")
+    func unconfiguredCircularComplicationFallback() {
+        let fixture = circularComplicationFixture(accessLevel: .pro)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: nil,
+            configuredDisplayLimit: nil,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.firstID)
+        #expect(selection.displayLimit == .weekly)
+        #expect(selection.window?.remainingPercentage == 70)
+    }
+
+    @Test("Circular complication can select account A and Weekly")
+    func circularComplicationAccountAWeekly() {
+        let fixture = circularComplicationFixture(accessLevel: .pro)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.firstID,
+            configuredDisplayLimit: .weekly,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.firstID)
+        #expect(selection.displayLimit == .weekly)
+        #expect(selection.window?.remainingPercentage == 70)
+    }
+
+    @Test("Circular complication can select account B and 5H")
+    func circularComplicationAccountBFiveHour() {
+        let fixture = circularComplicationFixture(accessLevel: .pro)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.secondID,
+            configuredDisplayLimit: .fiveHour,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.secondID)
+        #expect(selection.displayLimit == .fiveHour)
+        #expect(selection.window?.remainingPercentage == 80)
+    }
+
+    @Test("Two circular complication configurations resolve independently")
+    func circularComplicationInstancesAreIndependent() {
+        let fixture = circularComplicationFixture(accessLevel: .pro)
+        let first = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.firstID,
+            configuredDisplayLimit: .weekly,
+            at: fixture.date
+        )
+        let second = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.secondID,
+            configuredDisplayLimit: .fiveHour,
+            at: fixture.date
+        )
+
+        #expect(first.account?.accountIdentifier != second.account?.accountIdentifier)
+        #expect(first.displayLimit != second.displayLimit)
+        #expect(first.window?.remainingPercentage == 70)
+        #expect(second.window?.remainingPercentage == 80)
+    }
+
+    @Test("Missing configured circular account falls back without using its old snapshot")
+    func circularComplicationMissingAccountFallback() {
+        let fixture = circularComplicationFixture(accessLevel: .pro)
+        let envelopeWithStaleUnselectedData = SnapshotEnvelope(
+            snapshots: fixture.envelope.snapshots,
+            displayLimit: fixture.envelope.displayLimit,
+            accounts: fixture.envelope.accounts,
+            watchAccountIdentifiers: [fixture.firstID],
+            accessLevel: .pro
+        )
+        let selection = envelopeWithStaleUnselectedData.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.secondID,
+            configuredDisplayLimit: .weekly,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.firstID)
+        #expect(selection.window?.remainingPercentage == 70)
+    }
+
+    @Test("Free circular complication forces a saved Weekly configuration to 5H")
+    func freeCircularComplicationForcesFiveHour() {
+        let fixture = circularComplicationFixture(accessLevel: .free)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.firstID,
+            configuredDisplayLimit: .weekly,
+            at: fixture.date
+        )
+
+        #expect(selection.displayLimit == .fiveHour)
+        #expect(selection.window?.remainingPercentage == 90)
+    }
+
+    @Test("Free circular complication forces a saved second account to the first entitled account")
+    func freeCircularComplicationForcesFirstAccount() {
+        let fixture = circularComplicationFixture(accessLevel: .free)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.secondID,
+            configuredDisplayLimit: .fiveHour,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.firstID)
+        #expect(selection.window?.remainingPercentage == 90)
+    }
+
+    @Test("Trial and Pro circular complications honor instance configuration", arguments: [
+        AccessLevel.trial,
+        AccessLevel.pro,
+    ])
+    func entitledCircularComplicationConfiguration(accessLevel: AccessLevel) {
+        let fixture = circularComplicationFixture(accessLevel: accessLevel)
+        let selection = fixture.envelope.circularComplicationSelection(
+            configuredAccountIdentifier: fixture.secondID,
+            configuredDisplayLimit: .weekly,
+            at: fixture.date
+        )
+
+        #expect(selection.account?.accountIdentifier == fixture.secondID)
+        #expect(selection.displayLimit == .weekly)
+        #expect(selection.window?.remainingPercentage == 60)
+    }
+
+    private func circularComplicationFixture(
+        accessLevel: AccessLevel
+    ) -> (envelope: SnapshotEnvelope, firstID: UUID, secondID: UUID, date: Date) {
+        let firstID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let secondID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+        let date = Date(timeIntervalSince1970: 10_000)
+        let accounts = [
+            AccountDisplayMetadata(id: firstID, provider: .codex, ordinal: 1, displayName: "sou"),
+            AccountDisplayMetadata(id: secondID, provider: .codex, ordinal: 2, displayName: "凤娟 潘"),
+        ]
+        let snapshots = [
+            UsageSnapshot(
+                provider: .codex,
+                accountIdentifier: firstID,
+                session: UsageWindow(usedPercentage: 10, resetAt: nil),
+                weekly: UsageWindow(usedPercentage: 30, resetAt: nil),
+                updatedAt: date
+            ),
+            UsageSnapshot(
+                provider: .codex,
+                accountIdentifier: secondID,
+                session: UsageWindow(usedPercentage: 20, resetAt: nil),
+                weekly: UsageWindow(usedPercentage: 40, resetAt: nil),
+                updatedAt: date
+            ),
+        ]
+        return (
+            SnapshotEnvelope(
+                snapshots: snapshots,
+                displayLimit: .weekly,
+                accounts: accounts,
+                watchAccountIdentifiers: [firstID, secondID],
+                accessLevel: accessLevel,
+                proAccessExpiresAt: accessLevel == .trial ? date.addingTimeInterval(60) : nil
+            ),
+            firstID,
+            secondID,
+            date
+        )
+    }
+
     @Test("An explicit empty Watch selection does not silently select an account")
     func emptyWatchAccountSelection() {
         let accountID = UUID()

@@ -16,6 +16,7 @@ final class WatchDashboardStore {
         self.cache = cache
         envelope = cache.load()
         if envelope != nil {
+            WidgetCenter.shared.invalidateConfigurationRecommendations()
             WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
         }
         receiver = WatchConnectivityReceiver()
@@ -29,6 +30,7 @@ final class WatchDashboardStore {
         self.envelope = envelope
         refreshFailed = false
         if saved {
+            WidgetCenter.shared.invalidateConfigurationRecommendations()
             WidgetCenter.shared.reloadTimelines(ofKind: Self.complicationKind)
         }
     }

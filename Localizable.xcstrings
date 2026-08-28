@@ -1,6 +1,15 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Account": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Account" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アカウント" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계정" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "账号" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶" } }
+      }
+    },
     "Account actions": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Account actions" } },
@@ -8,6 +17,42 @@
         "ko": { "stringUnit": { "state": "translated", "value": "계정 작업" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "账户操作" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶操作" } }
+      }
+    },
+    "Choose an account and quota limit for this circular complication.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Choose an account and quota limit for this circular complication." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この円形コンプリケーションに表示するアカウントと上限を選択します。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 원형 컴플리케이션에 표시할 계정과 한도를 선택합니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择此圆形复杂功能要显示的账号和限额。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇此圓形複雜功能要顯示的帳戶和限額。" } }
+      }
+    },
+    "Configure Circular Complication": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Configure Circular Complication" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "円形コンプリケーションを設定" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "원형 컴플리케이션 구성" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "配置圆形复杂功能" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "設定圓形複雜功能" } }
+      }
+    },
+    "5H": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "5H" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "5H" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "5H" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "5H" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "5H" } }
+      }
+    },
+    "Limit": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Limit" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "上限" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "한도" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "限额" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "限額" } }
       }
     },
     "Apple Watch": {
@@ -1669,31 +1714,31 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget & Watch quota"
+            "value": "Default Widget & Watch quota"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget 与 Watch 显示限额"
+            "value": "Widget 与 Watch 默认显示限额"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget 與 Watch 顯示限額"
+            "value": "Widget 與 Watch 預設顯示限額"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget・Watchに表示する上限"
+            "value": "Widget・Watchのデフォルト上限"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Widget 및 Watch에 표시할 한도"
+            "value": "Widget 및 Watch 기본 표시 한도"
           }
         }
       }
