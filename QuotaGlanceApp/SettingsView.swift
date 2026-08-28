@@ -103,7 +103,16 @@ struct SettingsView: View {
                 .foregroundStyle(QuotaGlanceTheme.primaryText)
 
             HStack {
-                QuotaGlanceBrandIcon(size: 42)
+                QuotaGlanceBrandIcon(size: 36)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        QuotaGlanceTheme.secondarySurface,
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(QuotaGlanceTheme.border)
+                    }
                 Spacer()
                 Button(AppLocalization.string("Done", locale: locale)) {
                     dismiss()
@@ -130,6 +139,7 @@ struct SettingsView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .tint(QuotaGlanceTheme.brandAccent)
+                .fixedSize(horizontal: true, vertical: false)
             }
             settingsDivider()
             settingsRow(icon: "terminal", title: AppLocalization.string("Default provider", locale: locale)) {
@@ -144,6 +154,7 @@ struct SettingsView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .tint(QuotaGlanceTheme.brandAccent)
+                .fixedSize(horizontal: true, vertical: false)
             }
         }
     }
@@ -167,6 +178,7 @@ struct SettingsView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .tint(QuotaGlanceTheme.brandAccent)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(!store.purchaseManager.hasProFeatures)
                     .overlay {
                         if !store.purchaseManager.hasProFeatures {
@@ -233,6 +245,7 @@ struct SettingsView: View {
                         .labelsHidden()
                         .pickerStyle(.menu)
                         .tint(QuotaGlanceTheme.brandAccent)
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                 }
             }
@@ -252,6 +265,7 @@ struct SettingsView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .tint(QuotaGlanceTheme.brandAccent)
+                .fixedSize(horizontal: true, vertical: false)
                 .disabled(!store.purchaseManager.hasProFeatures)
                 .overlay {
                     if !store.purchaseManager.hasProFeatures {
@@ -298,11 +312,12 @@ struct SettingsView: View {
                 .foregroundStyle(QuotaGlanceTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(watchAccounts) { account in
-                            watchAccountButton(account)
-                        }
+                LazyVGrid(
+                    columns: watchGridColumns,
+                    spacing: 8
+                ) {
+                    ForEach(watchAccounts) { account in
+                        watchAccountButton(account)
                     }
                 }
             }
@@ -522,7 +537,7 @@ struct SettingsView: View {
                 isShowingUpgrade = true
             }
         } label: {
-            HStack(spacing: 7) {
+            HStack(spacing: 4) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected
                                      ? QuotaGlanceTheme.brandAccent
@@ -532,9 +547,11 @@ struct SettingsView: View {
                 Text(verbatim: "\(account.provider.displayName) / \(accountName(account))")
                     .foregroundStyle(QuotaGlanceTheme.primaryText)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.65)
             }
-            .font(.caption)
-            .padding(.horizontal, 12)
+            .font(.caption2)
+            .padding(.horizontal, 7)
+            .frame(maxWidth: .infinity)
             .frame(minHeight: 42)
             .background(QuotaGlanceTheme.secondarySurface.opacity(0.45), in: Capsule())
             .overlay { Capsule().stroke(QuotaGlanceTheme.border) }
@@ -605,6 +622,13 @@ struct SettingsView: View {
 
     private var providersWithAccounts: [AIProvider] {
         AIProvider.allCases.filter { !store.accounts(for: $0).isEmpty }
+    }
+
+    private var watchGridColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 8),
+            count: min(max(watchAccounts.count, 1), 3)
+        )
     }
 
     private var version: String {
