@@ -145,4 +145,52 @@ final class QuotaGlanceTests: XCTestCase {
             [second, third]
         )
     }
+
+    @MainActor
+    func testDisplayAccountSelectionSwitchesBothProvidersInBothDirections() {
+        let store = PreviewFactory.dashboard(states: PreviewFactory.normalStates, access: .pro)
+        let secondClaude = ProviderAccount(id: UUID(), provider: .claude, ordinal: 2, identityLabel: "Writing")
+        let presentations = PreviewFactory.normalStates + [
+            ProviderPresentation(
+                account: secondClaude,
+                isConnected: true,
+                snapshot: nil,
+                isRefreshing: false,
+                error: nil
+            ),
+        ]
+        store.loadPreview(presentations)
+
+        let codexAccounts = store.accounts(for: .codex)
+        let claudeAccounts = store.accounts(for: .claude)
+        XCTAssertEqual(codexAccounts.count, 2)
+        XCTAssertEqual(claudeAccounts.count, 2)
+
+        for (provider, accounts) in [(AIProvider.codex, codexAccounts), (.claude, claudeAccounts)] {
+            store.selectAccount(accounts[1].id, for: provider)
+            XCTAssertEqual(store.selectedAccountIdentifier(for: provider), accounts[1].id)
+            XCTAssertEqual(store.selectedAccountIdentifiers[provider], accounts[1].id)
+
+            store.selectAccount(accounts[0].id, for: provider)
+            XCTAssertEqual(store.selectedAccountIdentifier(for: provider), accounts[0].id)
+            XCTAssertEqual(store.selectedAccountIdentifiers[provider], accounts[0].id)
+        }
+    }
+
+    @MainActor
+    func testDisplayAccountSelectionPersistsForBothProviders() {
+        let suiteName = "QuotaGlanceTests.DisplaySelection.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let codexID = UUID()
+        let claudeID = UUID()
+
+        let cache = AppGroupSnapshotCache(defaults: defaults)
+        cache.setSelectedAccountIdentifier(codexID, for: .codex)
+        cache.setSelectedAccountIdentifier(claudeID, for: .claude)
+
+        let restored = AppGroupSnapshotCache(defaults: UserDefaults(suiteName: suiteName))
+        XCTAssertEqual(restored.selectedAccountIdentifier(for: .codex), codexID)
+        XCTAssertEqual(restored.selectedAccountIdentifier(for: .claude), claudeID)
+    }
 }
