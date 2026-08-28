@@ -10,6 +10,69 @@
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶操作" } }
       }
     },
+    "Account name": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Account name" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アカウント名" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계정 이름" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "账户名称" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶名稱" } }
+      }
+    },
+    "Credential Storage": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Credential Storage" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "認証情報の保存" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "인증 정보 저장" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "凭据存储" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "憑證儲存" } }
+      }
+    },
+    "Leave blank to use the account identity.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Leave blank to use the account identity." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "空欄にするとアカウントの識別情報が使用されます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "비워 두면 계정 식별 정보를 사용합니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "留空则使用账户身份信息。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "留空則使用帳戶身分資訊。" } }
+      }
+    },
+    "Lifetime Pro": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Lifetime Pro" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Lifetime Pro" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Lifetime Pro" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Lifetime Pro" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Lifetime Pro" } }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "OK" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "OK" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "확인" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "确定" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "確定" } }
+      }
+    },
+    "Rename account": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Rename account" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アカウント名を変更" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계정 이름 변경" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重命名账户" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新命名帳戶" } }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Save" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "保存" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "저장" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "儲存" } }
+      }
+    },
     "Apple Watch": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Apple Watch" } },

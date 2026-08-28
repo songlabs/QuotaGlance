@@ -337,7 +337,7 @@ struct SettingsView: View {
                 destination: URL(string: "https://songlabs.github.io/QuotaGlance/support/")!
             )
             settingsDivider(inset: 58)
-            settingsRow(icon: "key", title: AppLocalization.string("Privacy", locale: locale)) {
+            settingsRow(icon: "key", title: AppLocalization.string("Credential Storage", locale: locale)) {
                 Text(AppLocalization.string("Credentials stay in Keychain", locale: locale))
                     .font(.caption)
                     .foregroundStyle(QuotaGlanceTheme.secondaryText)
@@ -365,7 +365,7 @@ struct SettingsView: View {
                     Text(accessTitle).foregroundStyle(QuotaGlanceTheme.primaryText)
                     Spacer()
                     Text(store.accessLevel == .pro
-                         ? AppLocalization.string("Lifetime Unlock", locale: locale)
+                         ? AppLocalization.string("Lifetime Pro", locale: locale)
                          : AppLocalization.string("Upgrade to Pro", locale: locale))
                         .foregroundStyle(QuotaGlanceTheme.brandAccent)
                     if store.accessLevel != .pro {
@@ -591,7 +591,7 @@ struct SettingsView: View {
 
     private var accessTitle: String {
         switch store.accessLevel {
-        case .trial: AppLocalization.string("7-Day Free Trial", locale: locale)
+        case .trial: AppLocalization.string("7-Day Pro Trial", locale: locale)
         case .free: AppLocalization.string("Free", locale: locale)
         case .pro: AppLocalization.string("Pro", locale: locale)
         }
