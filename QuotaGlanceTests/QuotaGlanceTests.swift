@@ -153,13 +153,20 @@ final class QuotaGlanceTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let cache = SelectionTestSnapshotCache()
+        let purchaseManager = PurchaseManager(observesTransactions: false)
+        purchaseManager.configureForScreenshot(
+            accessLevel: .pro,
+            trialEndsAt: nil,
+            hasTrialTransaction: false,
+            lifetimePrice: "$0.00"
+        )
         let store = DashboardStore(
             providers: [:],
             credentials: KeychainCredentialStore(),
             registry: AccountRegistry(defaults: defaults),
             cache: cache,
             watchSync: SelectionTestWatchSync(),
-            purchaseManager: PurchaseManager(observesTransactions: false),
+            purchaseManager: purchaseManager,
             settingsDefaults: defaults,
             migrateLegacyCredentials: false
         )
