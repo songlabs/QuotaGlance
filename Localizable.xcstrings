@@ -1,6 +1,51 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Account actions": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Account actions" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アカウント操作" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계정 작업" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "账户操作" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶操作" } }
+      }
+    },
+    "Apple Watch": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Apple Watch" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Apple Watch" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Apple Watch" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "Apple Watch" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Apple Watch" } }
+      }
+    },
+    "General": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "General" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一般" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "일반" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "一般" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "一般" } }
+      }
+    },
+    "Refresh": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Refresh" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "更新" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "새로 고침" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "更新" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新整理" } }
+      }
+    },
+    "provider.accounts": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ Accounts" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ アカウント" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 계정" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%@ 账户" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ 帳戶" } }
+      }
+    },
     "Off": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Off" } },

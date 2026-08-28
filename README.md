@@ -113,8 +113,10 @@ These actions remain available to Free users for their entitled account. A succe
 
 - Percentages, rings, and progress bars represent **remaining** quota: `clamp(100 - used, 0...100)`.
 - A provider window that is absent is displayed as `—`, not as `0%`.
-- The iPhone, iPad, and Watch show the last successful update time; snapshots older than 15 minutes receive the cached/stale treatment.
+- The iPhone and iPad dashboard shows the most recent successful snapshot update once in its header summary, while Watch surfaces show the update time for their displayed snapshot; snapshots older than 15 minutes receive the cached/stale treatment.
 - Refresh failures keep the previous successful quota data and add an error state instead of replacing it with empty data.
+
+Settings keeps the existing controls grouped by purpose: Pro access, General, Refresh, provider-specific Accounts, Display, Apple Watch, and About.
 
 ## Purchase and Trial
 

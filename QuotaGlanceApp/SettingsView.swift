@@ -20,7 +20,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 Form {
-                Section {
+                Section(AppLocalization.string("Pro", locale: locale)) {
                     Button {
                         if SettingsUpgradeRouting.shouldPresentMembership(for: store.accessLevel) {
                             isShowingUpgrade = true
@@ -36,10 +36,20 @@ struct SettingsView: View {
                     }
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
-                Section(AppLocalization.string("Language", locale: locale)) {
+
+                Section(AppLocalization.string("General", locale: locale)) {
                     Picker(AppLocalization.string("Language", locale: locale), selection: $store.appLanguage) {
                         ForEach(AppLanguage.allCases) { language in
                             Text(language.displayName(locale: locale)).tag(language)
+                        }
+                    }
+
+                    Picker(AppLocalization.string("Default provider", locale: locale), selection: Binding(
+                        get: { store.defaultProvider },
+                        set: { store.defaultProvider = $0 }
+                    )) {
+                        ForEach(AIProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
                         }
                     }
                 }
@@ -54,7 +64,6 @@ struct SettingsView: View {
                             Text(refreshIntervalTitle(interval)).tag(interval)
                         }
                     }
-                    .labelsHidden()
                     .disabled(!store.purchaseManager.hasProFeatures)
                     .overlay {
                         if !store.purchaseManager.hasProFeatures {
@@ -64,7 +73,7 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text(AppLocalization.string("Automatic refresh interval", locale: locale))
+                    Text(AppLocalization.string("Refresh", locale: locale))
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
                         if !store.purchaseManager.hasProFeatures {
@@ -78,8 +87,15 @@ struct SettingsView: View {
                 }
                 .listRowBackground(QuotaGlanceTheme.cardBackground)
 
-                ForEach(AIProvider.allCases) { provider in
-                    Section(provider.displayName) {
+                Section(AppLocalization.string("Accounts", locale: locale)) {
+                    ForEach(AIProvider.allCases) { provider in
+                        Label(
+                            providerAccountsTitle(provider),
+                            systemImage: provider == .codex ? "terminal" : "sparkles"
+                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(provider.accent)
+
                         ForEach(store.accounts(for: provider)) { account in
                             accountRow(account)
                         }
@@ -89,21 +105,13 @@ struct SettingsView: View {
                         } label: {
                             Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                         }
+                        .tint(provider.accent)
                         .disabled(store.connectingProviders.contains(provider))
                     }
-                    .listRowBackground(QuotaGlanceTheme.cardBackground)
                 }
+                .listRowBackground(QuotaGlanceTheme.cardBackground)
 
                 Section(AppLocalization.string("Display", locale: locale)) {
-                    Picker(AppLocalization.string("Default provider", locale: locale), selection: Binding(
-                        get: { store.defaultProvider },
-                        set: { store.defaultProvider = $0 }
-                    )) {
-                        ForEach(AIProvider.allCases) { provider in
-                            Text(provider.displayName).tag(provider)
-                        }
-                    }
-
                     ForEach(AIProvider.allCases) { provider in
                         selectedAccountPicker(provider)
                     }
@@ -128,6 +136,17 @@ struct SettingsView: View {
                 .id("display")
 
                 Section {
+                    HStack {
+                        Label(AppLocalization.string("Apple Watch display accounts", locale: locale), systemImage: "applewatch")
+                        Spacer()
+                        Text(verbatim: "\(store.effectiveWatchAccountIdentifiers.count)/\(WatchAccountSelection.maximumCount)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(QuotaGlanceTheme.secondarySurface, in: Capsule())
+                    }
+
                     ForEach(watchAccounts) { account in
                         Button {
                             if store.purchaseManager.hasProFeatures { store.toggleWatchSelection(account.id) }
@@ -149,7 +168,7 @@ struct SettingsView: View {
                         .disabled(store.purchaseManager.hasProFeatures && !store.canToggleWatchSelection(account.id))
                     }
                 } header: {
-                    Text(AppLocalization.string("Apple Watch display accounts", locale: locale))
+                    Text(AppLocalization.string("Apple Watch", locale: locale))
                 } footer: {
                     Text(AppLocalization.string(
                         store.purchaseManager.hasProFeatures
@@ -257,6 +276,15 @@ struct SettingsView: View {
         }
     }
 
+    private func providerAccountsTitle(_ provider: AIProvider) -> String {
+        AppLocalization.string(
+            "provider.accounts",
+            defaultValue: "%@ Accounts",
+            locale: locale,
+            arguments: [provider.displayName]
+        )
+    }
+
     @ViewBuilder
     private func accountRow(_ account: ProviderAccount) -> some View {
         let state = store.states[account.id]
@@ -272,23 +300,30 @@ struct SettingsView: View {
                     )
             }
             Spacer()
-            if state?.isConnected == false {
-                Button(AppLocalization.string("Reconnect", locale: locale)) {
-                    Task { await store.reconnect(account.id) }
+            Menu {
+                Button(AppLocalization.string("Rename account", locale: locale), systemImage: "pencil") {
+                    accountNameDraft = account.customDisplayName ?? ""
+                    accountPendingRename = account
                 }
-            }
-            Button(role: .destructive) {
-                accountPendingDeletion = account
+                if state?.isConnected == false {
+                    Button(AppLocalization.string("Reconnect", locale: locale), systemImage: "arrow.clockwise") {
+                        Task { await store.reconnect(account.id) }
+                    }
+                }
+                Divider()
+                Button(role: .destructive) {
+                    accountPendingDeletion = account
+                } label: {
+                    Label(AppLocalization.string("Delete account", locale: locale), systemImage: "trash")
+                }
             } label: {
-                Image(systemName: "trash")
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 32, height: 32)
             }
-            .accessibilityLabel(AppLocalization.string("Delete account", locale: locale))
-        }
-        .contextMenu {
-            Button(AppLocalization.string("Rename", locale: locale), systemImage: "pencil") {
-                accountNameDraft = account.customDisplayName ?? ""
-                accountPendingRename = account
-            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.circle)
+            .accessibilityLabel(AppLocalization.string("Account actions", locale: locale))
         }
     }
 

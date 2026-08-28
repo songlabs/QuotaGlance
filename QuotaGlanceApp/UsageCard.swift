@@ -17,11 +17,16 @@ struct UsageCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text(accountName)
-                    .font(.headline)
-                    .foregroundStyle(snapshot.provider.accent)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
                 Spacer()
                 if isRefreshing {
                     ProgressView().controlSize(.small).tint(snapshot.provider.accent)
+                }
+                if isStale {
+                    Label(AppLocalization.string("Cached", locale: locale), systemImage: "clock.arrow.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
                 }
                 Button {
                     Task { await refresh() }
@@ -35,7 +40,7 @@ struct UsageCard: View {
 
             HStack(spacing: 18) {
                 UsageRing(window: primaryWindow, accent: snapshot.provider.accent)
-                    .frame(width: 88, height: 88)
+                    .frame(width: 96, height: 96)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(AppLocalization.string("5h remaining", locale: locale))
                         .font(.headline)
@@ -55,22 +60,6 @@ struct UsageCard: View {
                 Divider().overlay(QuotaGlanceTheme.border)
                 WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
             }
-
-            HStack(alignment: .firstTextBaseline) {
-                Text(AppLocalization.string(
-                    "data.updated",
-                    defaultValue: "Data updated: %@",
-                    locale: locale,
-                    arguments: [localDateTime(snapshot.updatedAt, locale: locale)]
-                ))
-                    .foregroundStyle(isStale ? QuotaGlanceTheme.secondaryText : QuotaGlanceTheme.tertiaryText)
-                Spacer()
-                if isStale {
-                    Label(AppLocalization.string("Cached", locale: locale), systemImage: "clock.arrow.circlepath")
-                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                }
-            }
-            .font(.caption)
 
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -183,7 +172,7 @@ private struct WeeklyRow: View {
     }
 }
 
-private func localDateTime(_ date: Date, locale: Locale) -> String {
+func localDateTime(_ date: Date, locale: Locale) -> String {
     let formatter = DateFormatter()
     formatter.locale = locale
     formatter.timeZone = .autoupdatingCurrent

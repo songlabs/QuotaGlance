@@ -18,28 +18,20 @@ struct DashboardView: View {
                 QuotaGlanceTheme.appBackground.ignoresSafeArea()
                 ScrollView {
                     LazyVStack(spacing: QuotaGlanceTheme.sectionSpacing) {
+                        DashboardHeader(store: store)
+                        RefreshSummary(store: store)
+
                         ForEach(AIProvider.allCases) { provider in
                             ProviderGroup(store: store, provider: provider)
                         }
                     }
                     .padding(.horizontal, 16)
+                    .padding(.top, 12)
                     .padding(.bottom, 24)
                 }
                 .refreshable { await store.refreshAll(force: true) }
             }
-            .navigationTitle("QuotaGlance")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    QuotaGlanceBrandIcon(size: 24)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(AppLocalization.string("Settings", locale: locale), systemImage: "gearshape") {
-                        store.isShowingUpgrade = false
-                        store.isShowingSettings = true
-                    }
-                    .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .tint(QuotaGlanceTheme.brandAccent)
         .sheet(isPresented: $store.isShowingSettings) {
@@ -84,6 +76,107 @@ struct DashboardView: View {
     }
 }
 
+private struct DashboardHeader: View {
+    @Bindable var store: DashboardStore
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        HStack(spacing: 14) {
+            QuotaGlanceBrandIcon(size: 52)
+
+            Text("QuotaGlance")
+                .font(.largeTitle.bold())
+                .foregroundStyle(QuotaGlanceTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Spacer(minLength: 12)
+
+            Button {
+                store.isShowingUpgrade = false
+                store.isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 46, height: 46)
+                    .background(QuotaGlanceTheme.secondarySurface, in: Circle())
+                    .overlay {
+                        Circle().stroke(QuotaGlanceTheme.border)
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(QuotaGlanceTheme.primaryText)
+            .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
+        }
+    }
+}
+
+private struct RefreshSummary: View {
+    @Bindable var store: DashboardStore
+    @Environment(\.locale) private var locale
+
+    private var visibleAccounts: [ProviderAccount] {
+        AIProvider.allCases.flatMap { store.accounts(for: $0) }
+    }
+
+    private var latestSuccessfulUpdate: Date? {
+        visibleAccounts
+            .compactMap { store.states[$0.id]?.snapshot?.updatedAt }
+            .max()
+    }
+
+    private var isRefreshing: Bool {
+        visibleAccounts.contains { store.states[$0.id]?.isRefreshing == true }
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                .frame(width: 42, height: 42)
+                .background(QuotaGlanceTheme.brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(AppLocalization.string("Last updated", locale: locale))
+                    .font(.caption)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                Text(latestSuccessfulUpdate.map { localDateTime($0, locale: locale) } ?? "—")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                Task { await store.refreshAll(force: true) }
+            } label: {
+                HStack(spacing: 7) {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text(AppLocalization.string(
+                        isRefreshing ? "Refreshing…" : "Refresh data",
+                        locale: locale
+                    ))
+                }
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .tint(QuotaGlanceTheme.brandAccent)
+            .disabled(isRefreshing)
+        }
+        .padding(QuotaGlanceTheme.cardPadding)
+        .quotaCardSurface()
+    }
+}
+
 private struct ProviderGroup: View {
     @Bindable var store: DashboardStore
     let provider: AIProvider
@@ -105,6 +198,9 @@ private struct ProviderGroup: View {
                     Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                 }
                 .font(.subheadline.weight(.medium))
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .tint(provider.accent)
                 .disabled(store.connectingProviders.contains(provider))
             }
 
