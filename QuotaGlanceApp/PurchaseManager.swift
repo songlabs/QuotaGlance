@@ -25,9 +25,14 @@ final class PurchaseManager {
     private var screenshotLifetimePrice: String?
 #endif
 
-    init(trialStore: TrialKeychainStore = TrialKeychainStore()) {
+    init(
+        trialStore: TrialKeychainStore = TrialKeychainStore(),
+        observesTransactions: Bool = true
+    ) {
         self.trialStore = trialStore
-        updatesTask = observeTransactions()
+        if observesTransactions {
+            updatesTask = observeTransactions()
+        }
     }
 
     isolated deinit { updatesTask?.cancel() }
