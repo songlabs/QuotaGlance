@@ -31,7 +31,7 @@
     "Refresh": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Refresh" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "更新" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "更新する" } },
         "ko": { "stringUnit": { "state": "translated", "value": "새로 고침" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "更新" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新整理" } }

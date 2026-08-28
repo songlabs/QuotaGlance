@@ -38,27 +38,33 @@ struct UsageCard: View {
                 .accessibilityLabel(AppLocalization.string("Refresh account", locale: locale))
             }
 
-            HStack(spacing: 18) {
+            HStack(alignment: .center, spacing: 18) {
                 UsageRing(window: primaryWindow, accent: snapshot.provider.accent)
-                    .frame(width: 96, height: 96)
-                VStack(alignment: .leading, spacing: 6) {
+                    .frame(width: 108, height: 108)
+                    .layoutPriority(1)
+
+                VStack(alignment: .leading, spacing: 10) {
                     Text(AppLocalization.string("5h remaining", locale: locale))
                         .font(.headline)
+                        .foregroundStyle(QuotaGlanceTheme.primaryText)
                     Text(resetText(primaryWindow?.resetAt))
                         .font(.subheadline)
                         .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                     if primaryWindow == nil {
                         Text(AppLocalization.string("Not reported by provider", locale: locale))
                             .font(.caption2)
                             .foregroundStyle(QuotaGlanceTheme.tertiaryText)
                     }
-                }
-                Spacer(minLength: 0)
-            }
 
-            if showsWeekly {
-                Divider().overlay(QuotaGlanceTheme.border)
-                WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
+                    if showsWeekly {
+                        Divider().overlay(QuotaGlanceTheme.border)
+                        WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
             }
 
             if let errorMessage {
@@ -104,13 +110,13 @@ private struct UsageRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(QuotaGlanceTheme.track, lineWidth: 8)
+            Circle().stroke(QuotaGlanceTheme.track, lineWidth: 9)
             Circle()
                 .trim(from: 0, to: (window?.remainingPercentage ?? 0) / 100)
-                .stroke(ringColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
-                .font(.system(size: 25, weight: .bold, design: .rounded))
+                .font(.system(size: 29, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(QuotaGlanceTheme.primaryText)
@@ -139,28 +145,30 @@ private struct WeeklyRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Text(AppLocalization.string("Weekly", locale: locale))
                     .font(.subheadline.weight(.medium))
-                    .frame(width: 58, alignment: .leading)
-                QuotaProgressBar(
-                    percentage: window?.remainingPercentage ?? 0,
-                    color: window == nil ? QuotaGlanceTheme.tertiaryText : accent
-                )
-                    .accessibilityLabel(AppLocalization.string("Weekly remaining", locale: locale))
+                Spacer(minLength: 8)
                 Text(window.map { "\($0.roundedRemainingPercentage)%" } ?? "—")
                     .font(.subheadline.bold())
                     .monospacedDigit()
-                    .frame(width: 42, alignment: .trailing)
             }
 
+            QuotaProgressBar(
+                percentage: window?.remainingPercentage ?? 0,
+                color: window == nil ? QuotaGlanceTheme.tertiaryText : accent
+            )
+            .accessibilityLabel(AppLocalization.string("Weekly remaining", locale: locale))
+
             if let resetAt = window?.resetAt {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(AppLocalization.string("Next update", locale: locale))
                         .foregroundStyle(QuotaGlanceTheme.secondaryText)
                     Spacer()
                     Text(localDateTime(resetAt, locale: locale))
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
                 .font(.caption)
             } else if window != nil {

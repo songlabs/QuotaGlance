@@ -26,7 +26,7 @@ struct DashboardView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.top, 18)
                     .padding(.bottom, 24)
                 }
                 .refreshable { await store.refreshAll(force: true) }
@@ -81,32 +81,40 @@ private struct DashboardHeader: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        HStack(spacing: 14) {
-            QuotaGlanceBrandIcon(size: 52)
+        VStack(spacing: 18) {
+            HStack(spacing: 14) {
+                QuotaGlanceBrandIcon(size: 48)
 
-            Text("QuotaGlance")
-                .font(.largeTitle.bold())
+                Text("QuotaGlance")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(QuotaGlanceTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Spacer(minLength: 12)
+
+                Button {
+                    store.isShowingUpgrade = false
+                    store.isShowingSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.title2.weight(.semibold))
+                        .frame(width: 48, height: 48)
+                        .background(
+                            QuotaGlanceTheme.secondarySurface,
+                            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .stroke(QuotaGlanceTheme.border)
+                        }
+                }
+                .buttonStyle(.plain)
                 .foregroundStyle(QuotaGlanceTheme.primaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Spacer(minLength: 12)
-
-            Button {
-                store.isShowingUpgrade = false
-                store.isShowingSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.title2.weight(.semibold))
-                    .frame(width: 46, height: 46)
-                    .background(QuotaGlanceTheme.secondarySurface, in: Circle())
-                    .overlay {
-                        Circle().stroke(QuotaGlanceTheme.border)
-                    }
+                .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(QuotaGlanceTheme.primaryText)
-            .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
+
+            Divider().overlay(QuotaGlanceTheme.border)
         }
     }
 }
@@ -130,24 +138,16 @@ private struct RefreshSummary: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(QuotaGlanceTheme.brandAccent)
-                .frame(width: 42, height: 42)
-                .background(QuotaGlanceTheme.brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        HStack(spacing: 12) {
+            Text(verbatim: "\(AppLocalization.string("Last updated", locale: locale))  \(latestSuccessfulUpdate.map { localDateTime($0, locale: locale) } ?? "—")")
+                .font(.subheadline)
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .layoutPriority(1)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(AppLocalization.string("Last updated", locale: locale))
-                    .font(.caption)
-                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
-                Text(latestSuccessfulUpdate.map { localDateTime($0, locale: locale) } ?? "—")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(QuotaGlanceTheme.primaryText)
-                    .monospacedDigit()
-            }
-
-            Spacer(minLength: 8)
+            Spacer(minLength: 4)
 
             Button {
                 Task { await store.refreshAll(force: true) }
@@ -159,21 +159,20 @@ private struct RefreshSummary: View {
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text(AppLocalization.string(
-                        isRefreshing ? "Refreshing…" : "Refresh data",
-                        locale: locale
-                    ))
+                    Text(AppLocalization.string("Refresh", locale: locale))
                 }
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .tint(QuotaGlanceTheme.brandAccent)
+            .buttonStyle(.plain)
+            .foregroundStyle(QuotaGlanceTheme.brandAccent)
             .disabled(isRefreshing)
+            .accessibilityLabel(AppLocalization.string(
+                isRefreshing ? "Refreshing…" : "Refresh",
+                locale: locale
+            ))
         }
-        .padding(QuotaGlanceTheme.cardPadding)
-        .quotaCardSurface()
+        .padding(.horizontal, 6)
     }
 }
 
@@ -198,9 +197,8 @@ private struct ProviderGroup: View {
                     Label(AppLocalization.string("Add account", locale: locale), systemImage: "plus")
                 }
                 .font(.subheadline.weight(.medium))
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .tint(provider.accent)
+                .buttonStyle(.plain)
+                .foregroundStyle(provider.accent)
                 .disabled(store.connectingProviders.contains(provider))
             }
 
