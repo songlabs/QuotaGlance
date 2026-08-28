@@ -76,6 +76,29 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             CODE_SIGNING_ALLOWED=NO | tee "$RUNNER_TEMP/release-build.log"
 
+      - name: Collect test host crash diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-crash-diagnostics"
+
+          if [ -d "$RUNNER_TEMP/QuotaGlanceTests.xcresult" ]; then
+            xcrun xcresulttool get test-results summary \
+              --path "$RUNNER_TEMP/QuotaGlanceTests.xcresult" \
+              > "$RUNNER_TEMP/test-crash-diagnostics/xcresult-summary.json" 2>&1 || true
+            xcrun xcresulttool get test-results tests \
+              --path "$RUNNER_TEMP/QuotaGlanceTests.xcresult" \
+              > "$RUNNER_TEMP/test-crash-diagnostics/xcresult-tests.json" 2>&1 || true
+          fi
+
+          for reports in \
+            "$HOME/Library/Logs/DiagnosticReports" \
+            "$HOME/Library/Developer/CoreSimulator/Devices/$SIMULATOR_ID/data/Library/Logs/DiagnosticReports"
+          do
+            [ -d "$reports" ] || continue
+            find "$reports" -type f \( -name 'QuotaGlance*.crash' -o -name 'QuotaGlance*.ips' \) \
+              -exec cp -p {} "$RUNNER_TEMP/test-crash-diagnostics/" \;
+          done
+
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,5 +107,6 @@ jobs:
           path: |
             ${{ runner.temp }}/QuotaGlanceTests.xcresult
             ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/test-crash-diagnostics
           retention-days: 7
           if-no-files-found: ignore
