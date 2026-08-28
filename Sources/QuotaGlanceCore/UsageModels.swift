@@ -329,6 +329,14 @@ public enum WatchAccountSelection {
         return current + [identifier]
     }
 
+    public static func removing(_ identifier: UUID, from identifiers: [UUID]) -> [UUID] {
+        normalized(identifiers).filter { $0 != identifier }
+    }
+
+    public static func position(of identifier: UUID, in identifiers: [UUID]) -> Int? {
+        normalized(identifiers).firstIndex(of: identifier).map { $0 + 1 }
+    }
+
     public static func initial(
         accountIdentifiers: [UUID],
         legacySelectedAccountIdentifiers: [UUID]
@@ -338,20 +346,6 @@ public enum WatchAccountSelection {
                 ? Array(accountIdentifiers.prefix(1))
                 : legacySelectedAccountIdentifiers
         )
-    }
-}
-
-public struct CircularComplicationSelection: Equatable, Sendable {
-    public let account: AccountUsagePresentation?
-    public let displayLimit: QuotaDisplayLimit
-
-    public init(account: AccountUsagePresentation?, displayLimit: QuotaDisplayLimit) {
-        self.account = account
-        self.displayLimit = displayLimit
-    }
-
-    public var window: UsageWindow? {
-        account?.snapshot.flatMap { displayLimit.window(in: $0) }
     }
 }
 
@@ -494,24 +488,6 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
 
     public func effectiveDisplayLimit(at date: Date = Date()) -> QuotaDisplayLimit {
         hasProFeatures(at: date) ? displayLimit : .fiveHour
-    }
-
-    public func circularComplicationSelection(
-        configuredAccountIdentifier: UUID?,
-        configuredDisplayLimit: QuotaDisplayLimit?,
-        at date: Date = Date()
-    ) -> CircularComplicationSelection {
-        let availableAccounts = watchAccountPresentations(at: date)
-        let configuredAccount = configuredAccountIdentifier.flatMap { identifier in
-            availableAccounts.first { $0.accountIdentifier == identifier }
-        }
-        let resolvedLimit = hasProFeatures(at: date)
-            ? (configuredDisplayLimit ?? effectiveDisplayLimit(at: date))
-            : .fiveHour
-        return CircularComplicationSelection(
-            account: configuredAccount ?? availableAccounts.first,
-            displayLimit: resolvedLimit
-        )
     }
 
     enum CodingKeys: String, CodingKey {

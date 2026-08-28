@@ -520,7 +520,10 @@ struct SettingsView: View {
     }
 
     private func watchAccountButton(_ account: ProviderAccount) -> some View {
-        let isSelected = store.isSelectedForWatch(account.id)
+        let selectionPosition = WatchAccountSelection.position(
+            of: account.id,
+            in: store.effectiveWatchAccountIdentifiers
+        )
         return Button {
             if store.purchaseManager.hasProFeatures {
                 store.toggleWatchSelection(account.id)
@@ -529,10 +532,26 @@ struct SettingsView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected
-                                     ? QuotaGlanceTheme.brandAccent
-                                     : QuotaGlanceTheme.secondaryText)
+                ZStack {
+                    Circle()
+                        .fill(selectionPosition == nil ? Color.clear : QuotaGlanceTheme.brandAccent)
+                        .overlay {
+                            Circle().stroke(
+                                selectionPosition == nil
+                                    ? QuotaGlanceTheme.secondaryText
+                                    : QuotaGlanceTheme.brandAccent,
+                                lineWidth: 1.25
+                            )
+                        }
+                    if let selectionPosition {
+                        Text(verbatim: "\(selectionPosition)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+                    }
+                }
+                .frame(width: 16, height: 16)
+                .accessibilityHidden(true)
                 Image(systemName: account.provider == .codex ? "terminal" : "sparkles")
                     .foregroundStyle(account.provider.accent)
                 Text(verbatim: "\(account.provider.displayName) / \(accountName(account))")

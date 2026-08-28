@@ -304,10 +304,6 @@ final class DashboardStore {
         publishSnapshots()
     }
 
-    func isSelectedForWatch(_ accountIdentifier: UUID) -> Bool {
-        effectiveWatchAccountIdentifiers.contains(accountIdentifier)
-    }
-
     func canToggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
         let selection = watchAccountIdentifiers
         if selection.contains(accountIdentifier) {
@@ -326,7 +322,7 @@ final class DashboardStore {
         let current = watchAccountIdentifiers
         let updated: [UUID]
         if current.contains(accountIdentifier) {
-            updated = current.filter { $0 != accountIdentifier }
+            updated = WatchAccountSelection.removing(accountIdentifier, from: current)
         } else {
             guard let added = WatchAccountSelection.adding(accountIdentifier, to: current) else {
                 return false
