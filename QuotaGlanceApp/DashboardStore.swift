@@ -158,7 +158,7 @@ final class DashboardStore {
         }
         accounts = loadedAccounts
 
-        selectedAccountIdentifiers = Dictionary(uniqueKeysWithValues: AIProvider.allCases.compactMap { provider in
+        var initialSelectedAccountIdentifiers = Dictionary(uniqueKeysWithValues: AIProvider.allCases.compactMap { provider in
             cache.selectedAccountIdentifier(for: provider).map { (provider, $0) }
         })
 
@@ -187,10 +187,11 @@ final class DashboardStore {
         for provider in AIProvider.allCases
         where cache.selectedAccountIdentifier(for: provider) == nil {
             if let accountIdentifier = loadedAccounts.first(where: { $0.provider == provider })?.id {
-                selectedAccountIdentifiers[provider] = accountIdentifier
+                initialSelectedAccountIdentifiers[provider] = accountIdentifier
                 cache.setSelectedAccountIdentifier(accountIdentifier, for: provider)
             }
         }
+        selectedAccountIdentifiers = initialSelectedAccountIdentifiers
 
         if cache.watchAccountIdentifiers() == nil {
             let initialWatchSelection = WatchAccountSelection.initial(
