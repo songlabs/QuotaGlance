@@ -149,21 +149,38 @@ final class QuotaGlanceTests: XCTestCase {
 
     @MainActor
     func testDisplayAccountSelectionSwitchesBothProvidersInBothDirections() {
-        let store = PreviewFactory.dashboard(states: PreviewFactory.normalStates, access: .pro)
-        let secondClaude = ProviderAccount(id: UUID(), provider: .claude, ordinal: 2, identityLabel: "Writing")
-        let presentations = PreviewFactory.normalStates + [
+        let suiteName = "QuotaGlanceTests.DisplaySelectionStore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let cache = SelectionTestSnapshotCache()
+        let store = DashboardStore(
+            providers: [:],
+            credentials: KeychainCredentialStore(),
+            registry: AccountRegistry(defaults: defaults),
+            cache: cache,
+            watchSync: SelectionTestWatchSync(),
+            purchaseManager: PurchaseManager(observesTransactions: false),
+            settingsDefaults: defaults,
+            migrateLegacyCredentials: false
+        )
+        let accounts = [
+            ProviderAccount(id: UUID(), provider: .codex, ordinal: 1, identityLabel: "Codex A"),
+            ProviderAccount(id: UUID(), provider: .codex, ordinal: 2, identityLabel: "Codex B"),
+            ProviderAccount(id: UUID(), provider: .claude, ordinal: 1, identityLabel: "Claude A"),
+            ProviderAccount(id: UUID(), provider: .claude, ordinal: 2, identityLabel: "Claude B"),
+        ]
+        store.loadPreview(accounts.map {
             ProviderPresentation(
-                account: secondClaude,
+                account: $0,
                 isConnected: true,
                 snapshot: nil,
                 isRefreshing: false,
                 error: nil
-            ),
-        ]
-        store.loadPreview(presentations)
+            )
+        })
 
-        let codexAccounts = store.accounts(for: .codex)
-        let claudeAccounts = store.accounts(for: .claude)
+        let codexAccounts = store.accounts.filter { $0.provider == .codex }
+        let claudeAccounts = store.accounts.filter { $0.provider == .claude }
         XCTAssertEqual(codexAccounts.count, 2)
         XCTAssertEqual(claudeAccounts.count, 2)
 
@@ -171,10 +188,12 @@ final class QuotaGlanceTests: XCTestCase {
             store.selectAccount(accounts[1].id, for: provider)
             XCTAssertEqual(store.selectedAccountIdentifier(for: provider), accounts[1].id)
             XCTAssertEqual(store.selectedAccountIdentifiers[provider], accounts[1].id)
+            XCTAssertEqual(cache.selectedAccountIdentifier(for: provider), accounts[1].id)
 
             store.selectAccount(accounts[0].id, for: provider)
             XCTAssertEqual(store.selectedAccountIdentifier(for: provider), accounts[0].id)
             XCTAssertEqual(store.selectedAccountIdentifiers[provider], accounts[0].id)
+            XCTAssertEqual(cache.selectedAccountIdentifier(for: provider), accounts[0].id)
         }
     }
 
@@ -194,4 +213,28 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertEqual(restored.selectedAccountIdentifier(for: .codex), codexID)
         XCTAssertEqual(restored.selectedAccountIdentifier(for: .claude), claudeID)
     }
+}
+
+@MainActor
+private final class SelectionTestSnapshotCache: SnapshotCaching {
+    private var selections: [AIProvider: UUID] = [:]
+    private var watchSelection: [UUID]?
+
+    func load() -> SnapshotEnvelope? { nil }
+    func save(_ envelope: SnapshotEnvelope) throws {}
+    func remove(accountIdentifier: UUID) throws {}
+    func selectedAccountIdentifier(for provider: AIProvider) -> UUID? { selections[provider] }
+    func setSelectedAccountIdentifier(_ accountIdentifier: UUID?, for provider: AIProvider) {
+        selections[provider] = accountIdentifier
+    }
+    func watchAccountIdentifiers() -> [UUID]? { watchSelection }
+    func setWatchAccountIdentifiers(_ accountIdentifiers: [UUID]) {
+        watchSelection = WatchAccountSelection.normalized(accountIdentifiers)
+    }
+}
+
+@MainActor
+private final class SelectionTestWatchSync: PhoneWatchSynchronizing {
+    func send(_ envelope: SnapshotEnvelope) {}
+    func setRefreshHandler(_ handler: @escaping @MainActor () async -> Bool) {}
 }

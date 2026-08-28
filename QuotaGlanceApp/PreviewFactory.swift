@@ -99,7 +99,7 @@ enum PreviewFactory {
             .claude: PreviewProvider(provider: .claude),
         ]
         let defaults = UserDefaults(suiteName: "QuotaGlancePreview.\(UUID().uuidString)")!
-        let purchaseManager = PurchaseManager(observesTransactions: false)
+        let purchaseManager = PurchaseManager()
         let store = DashboardStore(
             providers: providers,
             credentials: KeychainCredentialStore(),
