@@ -81,41 +81,38 @@ private struct DashboardHeader: View {
     @Environment(\.locale) private var locale
 
     var body: some View {
-        VStack(spacing: 18) {
-            HStack(spacing: 14) {
-                QuotaGlanceBrandIcon(size: 48)
+        HStack(spacing: 14) {
+            QuotaGlanceBrandIcon(size: 48)
 
-                Text("QuotaGlance")
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(QuotaGlanceTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Spacer(minLength: 12)
-
-                Button {
-                    store.isShowingUpgrade = false
-                    store.isShowingSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.title2.weight(.semibold))
-                        .frame(width: 48, height: 48)
-                        .background(
-                            QuotaGlanceTheme.secondarySurface,
-                            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                .stroke(QuotaGlanceTheme.border)
-                        }
-                }
-                .buttonStyle(.plain)
+            Text("QuotaGlance")
+                .font(.largeTitle.bold())
                 .foregroundStyle(QuotaGlanceTheme.primaryText)
-                .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
-            }
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
 
-            Divider().overlay(QuotaGlanceTheme.border)
+            Spacer(minLength: 12)
+
+            Button {
+                store.isShowingUpgrade = false
+                store.isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.title2.weight(.semibold))
+                    .frame(width: 48, height: 48)
+                    .background(
+                        QuotaGlanceTheme.secondarySurface,
+                        in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(QuotaGlanceTheme.border)
+                    }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(QuotaGlanceTheme.primaryText)
+            .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
         }
+        .padding(.bottom, 8)
     }
 }
 

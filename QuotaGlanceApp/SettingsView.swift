@@ -103,16 +103,7 @@ struct SettingsView: View {
                 .foregroundStyle(QuotaGlanceTheme.primaryText)
 
             HStack {
-                QuotaGlanceBrandIcon(size: 36)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        QuotaGlanceTheme.secondarySurface,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(QuotaGlanceTheme.border)
-                    }
+                QuotaGlanceBrandIcon(size: 48)
                 Spacer()
                 Button(AppLocalization.string("Done", locale: locale)) {
                     dismiss()
