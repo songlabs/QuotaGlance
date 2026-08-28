@@ -113,6 +113,7 @@ final class DashboardStore {
         }
     }
     private(set) var watchAccountIdentifiers: [UUID]
+    private(set) var selectedAccountIdentifiers: [AIProvider: UUID]
     private var lastRefreshAttempts: [UUID: Date] = [:]
     private var foregroundAutomaticRefreshTask: Task<Void, Never>?
     private var isForegroundAutomaticRefreshActive = false
@@ -157,6 +158,10 @@ final class DashboardStore {
         }
         accounts = loadedAccounts
 
+        selectedAccountIdentifiers = Dictionary(uniqueKeysWithValues: AIProvider.allCases.compactMap { provider in
+            cache.selectedAccountIdentifier(for: provider).map { (provider, $0) }
+        })
+
         let cachedSnapshots = cache.load()?.snapshots ?? []
         var initialStates: [UUID: ProviderPresentation] = [:]
         for account in loadedAccounts {
@@ -181,10 +186,10 @@ final class DashboardStore {
         }
         for provider in AIProvider.allCases
         where cache.selectedAccountIdentifier(for: provider) == nil {
-            cache.setSelectedAccountIdentifier(
-                loadedAccounts.first(where: { $0.provider == provider })?.id,
-                for: provider
-            )
+            if let accountIdentifier = loadedAccounts.first(where: { $0.provider == provider })?.id {
+                selectedAccountIdentifiers[provider] = accountIdentifier
+                cache.setSelectedAccountIdentifier(accountIdentifier, for: provider)
+            }
         }
 
         if cache.watchAccountIdentifiers() == nil {
@@ -284,7 +289,7 @@ final class DashboardStore {
 
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? {
         let available = accounts(for: provider)
-        if let selected = cache.selectedAccountIdentifier(for: provider),
+        if let selected = selectedAccountIdentifiers[provider],
            available.contains(where: { $0.id == selected }) {
             return selected
         }
@@ -293,6 +298,7 @@ final class DashboardStore {
 
     func selectAccount(_ accountIdentifier: UUID, for provider: AIProvider) {
         guard accounts.contains(where: { $0.id == accountIdentifier && $0.provider == provider }) else { return }
+        selectedAccountIdentifiers[provider] = accountIdentifier
         cache.setSelectedAccountIdentifier(accountIdentifier, for: provider)
         publishSnapshots()
     }
@@ -489,6 +495,7 @@ final class DashboardStore {
                 error: nil
             )
             if cache.selectedAccountIdentifier(for: provider) == nil {
+                selectedAccountIdentifiers[provider] = account.id
                 cache.setSelectedAccountIdentifier(account.id, for: provider)
             }
             if cache.watchAccountIdentifiers() == nil {
@@ -548,7 +555,9 @@ final class DashboardStore {
             try cache.remove(accountIdentifier: accountIdentifier)
 
             if cache.selectedAccountIdentifier(for: account.provider) == accountIdentifier {
-                cache.setSelectedAccountIdentifier(accounts(for: account.provider).first?.id, for: account.provider)
+                let replacement = accounts(for: account.provider).first?.id
+                selectedAccountIdentifiers[account.provider] = replacement
+                cache.setSelectedAccountIdentifier(replacement, for: account.provider)
             }
             if let watchSelection = cache.watchAccountIdentifiers() {
                 watchAccountIdentifiers = watchSelection.filter { $0 != accountIdentifier }
