@@ -10,6 +10,9 @@ struct SettingsView: View {
     @State private var accountPendingRename: ProviderAccount?
     @State private var accountNameDraft = ""
     @State private var isShowingUpgrade = false
+    @State private var isShowingAppReviewDemo = false
+    @State private var appReviewDemoUnlockTaps = 0
+    @State private var isAppReviewDemoUnlocked = false
 
     init(store: DashboardStore, initialScrollTarget: String? = nil) {
         self.store = store
@@ -50,6 +53,9 @@ struct SettingsView: View {
         .tint(QuotaGlanceTheme.brandAccent)
         .sheet(isPresented: $isShowingUpgrade) {
             UpgradeView(store: store)
+        }
+        .sheet(isPresented: $isShowingAppReviewDemo) {
+            AppReviewDemoView(store: store)
         }
         .onDisappear {
             store.isShowingUpgrade = false
@@ -170,10 +176,10 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .tint(QuotaGlanceTheme.brandAccent)
                     .fixedSize(horizontal: true, vertical: false)
-                    .disabled(!store.purchaseManager.hasProFeatures)
+                    .disabled(!store.hasProFeatures)
                     .overlay {
-                        if !store.purchaseManager.hasProFeatures {
-                            Color.clear.contentShape(Rectangle()).onTapGesture { isShowingUpgrade = true }
+                        if !store.hasProFeatures {
+                            Color.clear.contentShape(Rectangle()).onTapGesture { presentUpgradeOrDemo() }
                         }
                     }
                 }
@@ -181,7 +187,7 @@ struct SettingsView: View {
             .settingsCardSurface()
 
             VStack(alignment: .leading, spacing: 4) {
-                if !store.purchaseManager.hasProFeatures {
+                if !store.hasProFeatures {
                     Text(AppLocalization.string("Free refresh interval is fixed at 4 hours.", locale: locale))
                 }
                 Text(AppLocalization.string(
@@ -257,10 +263,10 @@ struct SettingsView: View {
                 .pickerStyle(.menu)
                 .tint(QuotaGlanceTheme.brandAccent)
                 .fixedSize(horizontal: true, vertical: false)
-                .disabled(!store.purchaseManager.hasProFeatures)
+                .disabled(!store.hasProFeatures)
                 .overlay {
-                    if !store.purchaseManager.hasProFeatures {
-                        Color.clear.contentShape(Rectangle()).onTapGesture { isShowingUpgrade = true }
+                    if !store.hasProFeatures {
+                        Color.clear.contentShape(Rectangle()).onTapGesture { presentUpgradeOrDemo() }
                     }
                 }
             }
@@ -294,7 +300,7 @@ struct SettingsView: View {
                 }
 
                 Text(AppLocalization.string(
-                    store.purchaseManager.hasProFeatures
+                    store.hasProFeatures
                         ? "Choose up to 2 accounts for Apple Watch."
                         : "Free uses the first account. Trial and Pro can choose up to 2 accounts.",
                     locale: locale
@@ -345,8 +351,41 @@ struct SettingsView: View {
                     .minimumScaleFactor(0.75)
             }
             settingsDivider(inset: 58)
-            settingsRow(icon: "info.circle", title: AppLocalization.string("Version", locale: locale)) {
-                Text(version).foregroundStyle(QuotaGlanceTheme.secondaryText)
+            Button {
+                appReviewDemoUnlockTaps = AppReviewDemoUnlock.nextTapCount(
+                    after: appReviewDemoUnlockTaps
+                )
+                if AppReviewDemoUnlock.shouldUnlock(afterTapCount: appReviewDemoUnlockTaps) {
+                    appReviewDemoUnlockTaps = 0
+                    isAppReviewDemoUnlocked = true
+                    isShowingAppReviewDemo = true
+                }
+            } label: {
+                settingsRow(icon: "info.circle", title: AppLocalization.string("Version", locale: locale)) {
+                    Text(version).foregroundStyle(QuotaGlanceTheme.secondaryText)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isAppReviewDemoUnlocked || store.isAppReviewDemoEnabled {
+                settingsDivider(inset: 58)
+                Button {
+                    isShowingAppReviewDemo = true
+                } label: {
+                    settingsRow(
+                        icon: "checkmark.seal",
+                        title: AppLocalization.string("App Review Demo", locale: locale)
+                    ) {
+                        Text(AppLocalization.string(
+                            store.isAppReviewDemoEnabled ? "On" : "Off",
+                            locale: locale
+                        ))
+                        .foregroundStyle(store.isAppReviewDemoEnabled
+                                         ? QuotaGlanceTheme.brandAccent
+                                         : QuotaGlanceTheme.secondaryText)
+                    }
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -354,7 +393,9 @@ struct SettingsView: View {
     private var proSection: some View {
         settingsSection(title: AppLocalization.string("Pro", locale: locale)) {
             Button {
-                if SettingsUpgradeRouting.shouldPresentMembership(for: store.accessLevel) {
+                if store.isAppReviewDemoEnabled {
+                    isShowingAppReviewDemo = true
+                } else if SettingsUpgradeRouting.shouldPresentMembership(for: store.accessLevel) {
                     isShowingUpgrade = true
                 }
             } label: {
@@ -364,11 +405,13 @@ struct SettingsView: View {
                         .frame(width: 30)
                     Text(accessTitle).foregroundStyle(QuotaGlanceTheme.primaryText)
                     Spacer()
-                    Text(store.accessLevel == .pro
-                         ? AppLocalization.string("Lifetime Pro", locale: locale)
-                         : AppLocalization.string("Upgrade to Pro", locale: locale))
+                    Text(store.isAppReviewDemoEnabled
+                         ? AppLocalization.string("App Review Demo", locale: locale)
+                         : (store.accessLevel == .pro
+                            ? AppLocalization.string("Lifetime Pro", locale: locale)
+                            : AppLocalization.string("Upgrade to Pro", locale: locale)))
                         .foregroundStyle(QuotaGlanceTheme.brandAccent)
-                    if store.accessLevel != .pro {
+                    if store.isAppReviewDemoEnabled || store.accessLevel != .pro {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(QuotaGlanceTheme.secondaryText)
@@ -436,7 +479,7 @@ struct SettingsView: View {
                 if store.canAddAccount {
                     Task { await store.addAccount(provider) }
                 } else {
-                    isShowingUpgrade = true
+                    presentUpgradeOrDemo()
                 }
             } label: {
                 Group {
@@ -486,33 +529,39 @@ struct SettingsView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            Menu {
-                Button(AppLocalization.string("Rename account", locale: locale), systemImage: "pencil") {
-                    accountNameDraft = account.customDisplayName ?? ""
-                    accountPendingRename = account
-                }
-                if state?.isConnected == false {
-                    Button(AppLocalization.string("Reconnect", locale: locale), systemImage: "arrow.clockwise") {
-                        Task { await store.reconnect(account.id) }
+            if store.canManageAccounts {
+                Menu {
+                    Button(AppLocalization.string("Rename account", locale: locale), systemImage: "pencil") {
+                        accountNameDraft = account.customDisplayName ?? ""
+                        accountPendingRename = account
                     }
-                }
-                Divider()
-                Button(role: .destructive) {
-                    accountPendingDeletion = account
+                    if state?.isConnected == false {
+                        Button(AppLocalization.string("Reconnect", locale: locale), systemImage: "arrow.clockwise") {
+                            Task { await store.reconnect(account.id) }
+                        }
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        accountPendingDeletion = account
+                    } label: {
+                        Label(AppLocalization.string("Delete account", locale: locale), systemImage: "trash")
+                    }
                 } label: {
-                    Label(AppLocalization.string("Delete account", locale: locale), systemImage: "trash")
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(QuotaGlanceTheme.primaryText)
+                        .frame(width: 34, height: 34)
+                        .background(QuotaGlanceTheme.secondarySurface.opacity(0.7), in: Circle())
+                        .overlay { Circle().stroke(QuotaGlanceTheme.border) }
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(QuotaGlanceTheme.primaryText)
-                    .frame(width: 34, height: 34)
-                    .background(QuotaGlanceTheme.secondarySurface.opacity(0.7), in: Circle())
-                    .overlay { Circle().stroke(QuotaGlanceTheme.border) }
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                .accessibilityLabel(AppLocalization.string("Account actions", locale: locale))
+            } else {
+                Text(AppLocalization.string("Local sample data", locale: locale))
+                    .font(.caption2)
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
             }
-            .accessibilityLabel(AppLocalization.string("Account actions", locale: locale))
         }
         .padding(.leading, 16)
         .padding(.trailing, 6)
@@ -525,10 +574,10 @@ struct SettingsView: View {
             in: store.effectiveWatchAccountIdentifiers
         )
         return Button {
-            if store.purchaseManager.hasProFeatures {
+            if store.hasProFeatures {
                 store.toggleWatchSelection(account.id)
             } else {
-                isShowingUpgrade = true
+                presentUpgradeOrDemo()
             }
         } label: {
             HStack(spacing: 4) {
@@ -567,7 +616,7 @@ struct SettingsView: View {
             .overlay { Capsule().stroke(QuotaGlanceTheme.border) }
         }
         .buttonStyle(.plain)
-        .disabled(store.purchaseManager.hasProFeatures && !store.canToggleWatchSelection(account.id))
+        .disabled(store.hasProFeatures && !store.canToggleWatchSelection(account.id))
     }
 
     private func linkRow(title: String, icon: String, destination: URL) -> some View {
@@ -586,6 +635,14 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .frame(minHeight: 56)
             .contentShape(Rectangle())
+        }
+    }
+
+    private func presentUpgradeOrDemo() {
+        if store.isAppReviewDemoEnabled {
+            isShowingAppReviewDemo = true
+        } else {
+            isShowingUpgrade = true
         }
     }
 

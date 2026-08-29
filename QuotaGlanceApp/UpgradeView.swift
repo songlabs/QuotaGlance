@@ -43,7 +43,7 @@ struct UpgradeView: View {
                             workingLabel(AppLocalization.string("Start 7-Day Free Trial", locale: locale))
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isWorking || !store.purchaseManager.canPresentTrialPurchase)
+                        .disabled(isWorking || store.isAppReviewDemoEnabled || !store.purchaseManager.canPresentTrialPurchase)
                     }
                     .id("trial")
                 }
@@ -68,7 +68,7 @@ struct UpgradeView: View {
                             workingLabel(AppLocalization.string("Buy Pro", locale: locale))
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isWorking || !store.purchaseManager.canPresentLifetimePurchase)
+                        .disabled(isWorking || store.isAppReviewDemoEnabled || !store.purchaseManager.canPresentLifetimePurchase)
                     }
                     .id("purchase")
                 }
@@ -77,7 +77,7 @@ struct UpgradeView: View {
                     Button(AppLocalization.string("Restore Purchases", locale: locale)) {
                         Task { await restore() }
                     }
-                    .disabled(isWorking)
+                    .disabled(isWorking || store.isAppReviewDemoEnabled)
                 }
                 .id("restore")
                 }
@@ -229,6 +229,7 @@ struct UpgradeView: View {
     }
 
     private func purchaseTrial() async {
+        guard !store.isAppReviewDemoEnabled else { return }
         let previous = store.accessLevel
         isWorking = true
         let succeeded = await store.purchaseManager.purchaseTrial()
@@ -238,6 +239,7 @@ struct UpgradeView: View {
     }
 
     private func purchaseLifetime() async {
+        guard !store.isAppReviewDemoEnabled else { return }
         let previous = store.accessLevel
         isWorking = true
         let succeeded = await store.purchaseManager.purchaseLifetime()
@@ -247,6 +249,7 @@ struct UpgradeView: View {
     }
 
     private func restore() async {
+        guard !store.isAppReviewDemoEnabled else { return }
         let previous = store.accessLevel
         isWorking = true
         let succeeded = await store.purchaseManager.restorePurchases()

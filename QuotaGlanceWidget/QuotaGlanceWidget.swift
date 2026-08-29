@@ -83,12 +83,14 @@ private struct PhoneWidgetView: View {
     }
 
     private func small(_ envelope: SnapshotEnvelope) -> some View {
-        let provider = WidgetSnapshotReader.defaultProvider
+        let provider = envelope.isAppReviewDemo
+            ? AppReviewDemoWidgetPolicy.defaultProvider(in: envelope)
+            : WidgetSnapshotReader.defaultProvider
         let snapshot = envelope.snapshot(
             for: provider,
-            accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
+            accountIdentifier: selectedAccountIdentifier(for: provider, in: envelope)
         ) ?? envelope.snapshots[0]
-        let displayLimit = WidgetSnapshotReader.displayLimit
+        let displayLimit = displayLimit(in: envelope)
         let window = displayLimit.window(in: snapshot)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
@@ -117,9 +119,9 @@ private struct PhoneWidgetView: View {
             ForEach(AIProvider.allCases) { provider in
                 if let snapshot = envelope.snapshot(
                     for: provider,
-                    accountIdentifier: WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
+                    accountIdentifier: selectedAccountIdentifier(for: provider, in: envelope)
                 ) {
-                    let displayLimit = WidgetSnapshotReader.displayLimit
+                    let displayLimit = displayLimit(in: envelope)
                     let window = displayLimit.window(in: snapshot)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(provider.displayName.uppercased())
@@ -148,6 +150,25 @@ private struct PhoneWidgetView: View {
         case .fiveHour: String(localized: "5 hours")
         case .weekly: String(localized: "Weekly")
         }
+    }
+
+    private func displayLimit(in envelope: SnapshotEnvelope) -> QuotaDisplayLimit {
+        envelope.isAppReviewDemo
+            ? envelope.effectiveDisplayLimit(at: entry.date)
+            : WidgetSnapshotReader.displayLimit
+    }
+
+    private func selectedAccountIdentifier(
+        for provider: AIProvider,
+        in envelope: SnapshotEnvelope
+    ) -> UUID? {
+        if envelope.isAppReviewDemo {
+            return AppReviewDemoWidgetPolicy.selectedAccountIdentifier(
+                for: provider,
+                in: envelope
+            )
+        }
+        return WidgetSnapshotReader.selectedAccountIdentifier(for: provider)
     }
 }
 

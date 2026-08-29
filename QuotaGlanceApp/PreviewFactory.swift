@@ -22,25 +22,28 @@ enum PreviewFactory {
         identityLabel: "Research"
     )
 
-    static let codex = UsageSnapshot(
-        provider: .codex,
-        accountIdentifier: codexAccount.id,
-        session: UsageWindow(usedPercentage: 28, resetAt: Date().addingTimeInterval(7_200)),
-        weekly: UsageWindow(usedPercentage: 59, resetAt: Date().addingTimeInterval(345_600)),
+    static let codex = sampleSnapshot(
+        account: codexAccount,
+        sessionUsedPercentage: 28,
+        weeklyUsedPercentage: 59,
+        sessionResetInterval: 7_200,
+        weeklyResetInterval: 345_600,
         updatedAt: Date()
     )
-    static let secondCodex = UsageSnapshot(
-        provider: .codex,
-        accountIdentifier: secondCodexAccount.id,
-        session: UsageWindow(usedPercentage: 62, resetAt: Date().addingTimeInterval(8_200)),
-        weekly: UsageWindow(usedPercentage: 21, resetAt: Date().addingTimeInterval(445_600)),
+    static let secondCodex = sampleSnapshot(
+        account: secondCodexAccount,
+        sessionUsedPercentage: 62,
+        weeklyUsedPercentage: 21,
+        sessionResetInterval: 8_200,
+        weeklyResetInterval: 445_600,
         updatedAt: Date().addingTimeInterval(-120)
     )
-    static let claude = UsageSnapshot(
-        provider: .claude,
-        accountIdentifier: claudeAccount.id,
-        session: UsageWindow(usedPercentage: 52, resetAt: Date().addingTimeInterval(9_000)),
-        weekly: UsageWindow(usedPercentage: 37, resetAt: Date().addingTimeInterval(432_000)),
+    static let claude = sampleSnapshot(
+        account: claudeAccount,
+        sessionUsedPercentage: 52,
+        weeklyUsedPercentage: 37,
+        sessionResetInterval: 9_000,
+        weeklyResetInterval: 432_000,
         updatedAt: Date()
     )
 
@@ -49,6 +52,35 @@ enum PreviewFactory {
             presentation(codexAccount, snapshot: codex),
             presentation(secondCodexAccount, snapshot: secondCodex),
             presentation(claudeAccount, snapshot: claude),
+        ]
+    }
+
+    static func appReviewDemoStates(updatedAt: Date = Date()) -> [ProviderPresentation] {
+        [
+            presentation(codexAccount, snapshot: sampleSnapshot(
+                account: codexAccount,
+                sessionUsedPercentage: 28,
+                weeklyUsedPercentage: 59,
+                sessionResetInterval: 7_200,
+                weeklyResetInterval: 345_600,
+                updatedAt: updatedAt
+            )),
+            presentation(secondCodexAccount, snapshot: sampleSnapshot(
+                account: secondCodexAccount,
+                sessionUsedPercentage: 62,
+                weeklyUsedPercentage: 21,
+                sessionResetInterval: 8_200,
+                weeklyResetInterval: 445_600,
+                updatedAt: updatedAt.addingTimeInterval(-120)
+            )),
+            presentation(claudeAccount, snapshot: sampleSnapshot(
+                account: claudeAccount,
+                sessionUsedPercentage: 52,
+                weeklyUsedPercentage: 37,
+                sessionResetInterval: 9_000,
+                weeklyResetInterval: 432_000,
+                updatedAt: updatedAt
+            )),
         ]
     }
 
@@ -142,6 +174,29 @@ enum PreviewFactory {
             error: error
         )
     }
+
+    private static func sampleSnapshot(
+        account: ProviderAccount,
+        sessionUsedPercentage: Double,
+        weeklyUsedPercentage: Double,
+        sessionResetInterval: TimeInterval,
+        weeklyResetInterval: TimeInterval,
+        updatedAt: Date
+    ) -> UsageSnapshot {
+        UsageSnapshot(
+            provider: account.provider,
+            accountIdentifier: account.id,
+            session: UsageWindow(
+                usedPercentage: sessionUsedPercentage,
+                resetAt: updatedAt.addingTimeInterval(sessionResetInterval)
+            ),
+            weekly: UsageWindow(
+                usedPercentage: weeklyUsedPercentage,
+                resetAt: updatedAt.addingTimeInterval(weeklyResetInterval)
+            ),
+            updatedAt: updatedAt
+        )
+    }
 }
 
 @MainActor
@@ -174,9 +229,24 @@ private final class PreviewProvider: UsageProvider {
 private final class PreviewCache: SnapshotCaching {
     private var selections: [AIProvider: UUID] = [:]
     private var watchSelection: [UUID]?
+    private var envelope: SnapshotEnvelope?
+    private var productionEnvelope: SnapshotEnvelope?
 
-    func load() -> SnapshotEnvelope? { nil }
-    func save(_ envelope: SnapshotEnvelope) throws {}
+    func load() -> SnapshotEnvelope? { envelope }
+    func save(_ envelope: SnapshotEnvelope) throws { self.envelope = envelope }
+    func prepareAppReviewDemoSnapshot() throws -> SnapshotEnvelope? {
+        productionEnvelope = envelope
+        return productionEnvelope
+    }
+    func restoreProductionSnapshotAfterAppReviewDemo() throws -> SnapshotEnvelope {
+        let restored = productionEnvelope ?? SnapshotEnvelope(snapshots: [])
+        envelope = restored
+        productionEnvelope = nil
+        return restored
+    }
+    func recoverInterruptedAppReviewDemoSnapshot() -> (envelope: SnapshotEnvelope?, didRecover: Bool) {
+        (envelope, false)
+    }
     func remove(accountIdentifier: UUID) throws {}
     func selectedAccountIdentifier(for provider: AIProvider) -> UUID? { selections[provider] }
     func setSelectedAccountIdentifier(_ accountIdentifier: UUID?, for provider: AIProvider) {

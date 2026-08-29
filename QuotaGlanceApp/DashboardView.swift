@@ -19,6 +19,9 @@ struct DashboardView: View {
                 ScrollView {
                     LazyVStack(spacing: QuotaGlanceTheme.sectionSpacing) {
                         DashboardHeader(store: store)
+                        if store.isAppReviewDemoEnabled {
+                            AppReviewDemoBanner(store: store)
+                        }
                         RefreshSummary(store: store)
 
                         ForEach(AIProvider.allCases) { provider in
@@ -40,6 +43,9 @@ struct DashboardView: View {
         .sheet(isPresented: $store.isShowingUpgrade) {
             UpgradeView(store: store)
         }
+        .sheet(isPresented: $store.isShowingAppReviewDemo) {
+            AppReviewDemoView(store: store)
+        }
         .task {
             guard runsStartupTasks else { return }
             let previousAccessLevel = store.accessLevel
@@ -52,7 +58,7 @@ struct DashboardView: View {
             }
         }
         .task(id: store.accessLevel) {
-            guard runsStartupTasks else { return }
+            guard runsStartupTasks, !store.isAppReviewDemoEnabled else { return }
             if store.accessLevel == .trial {
                 let remaining = store.purchaseManager.trialTimeRemaining
                 if remaining > 0 {
@@ -113,6 +119,38 @@ private struct DashboardHeader: View {
             .accessibilityLabel(AppLocalization.string("Settings", locale: locale))
         }
         .padding(.bottom, 8)
+    }
+}
+
+private struct AppReviewDemoBanner: View {
+    @Bindable var store: DashboardStore
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        Button {
+            store.isShowingAppReviewDemo = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(AppLocalization.string("App Review Demo", locale: locale))
+                        .font(.headline)
+                    Text(AppLocalization.string("Local sample data", locale: locale))
+                        .font(.caption)
+                        .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            }
+            .foregroundStyle(QuotaGlanceTheme.primaryText)
+            .padding(QuotaGlanceTheme.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .quotaCardSurface()
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -211,7 +249,7 @@ private struct ProviderGroup: View {
                     if let state = store.states[account.id] {
                         AccountSection(
                             state: state,
-                            showsWeekly: store.purchaseManager.hasProFeatures,
+                            showsWeekly: store.hasProFeatures,
                             refresh: { await store.refresh(account.id) },
                             reconnect: { await store.reconnect(account.id) }
                         )

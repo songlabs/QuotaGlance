@@ -23,6 +23,13 @@ struct WatchDashboardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("top")
 
+                if store.envelope?.isAppReviewDemo == true {
+                    Label("App Review Demo", systemImage: "checkmark.seal.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(QuotaGlanceTheme.brandAccent)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 if hasAccounts {
                     ForEach(AIProvider.allCases) { provider in
                         let accounts = store.accountPresentations(for: provider)

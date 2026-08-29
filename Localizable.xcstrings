@@ -19,6 +19,105 @@
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "帳戶名稱" } }
       }
     },
+    "App Review Demo": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "App Review Demo" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "App審査用デモ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "App 심사 데모" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "App 审核演示" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "App 審核示範" } }
+      }
+    },
+    "Demo Access": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Demo Access" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デモアクセス" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "데모 액세스" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "演示访问权限" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "示範存取權限" } }
+      }
+    },
+    "Demo Mode": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Demo Mode" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デモモード" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "데모 모드" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "演示模式" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "示範模式" } }
+      }
+    },
+    "Demo Mode is active": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Demo Mode is active" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デモモードが有効です" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "데모 모드가 활성화되었습니다" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "演示模式已开启" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "示範模式已開啟" } }
+      }
+    },
+    "Demo Mode uses local sample data and does not access provider APIs, OAuth credentials, or StoreKit purchases.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Demo Mode uses local sample data and does not access provider APIs, OAuth credentials, or StoreKit purchases." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デモモードではローカルのサンプルデータのみを使用し、プロバイダーAPI、OAuth認証情報、StoreKit購入にはアクセスしません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "데모 모드는 로컬 샘플 데이터만 사용하며 공급자 API, OAuth 인증 정보 또는 StoreKit 구입에 접근하지 않습니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "演示模式仅使用本地示例数据，不会访问服务商 API、OAuth 凭据或 StoreKit 购买。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "示範模式僅使用本機範例資料，不會存取服務商 API、OAuth 憑證或 StoreKit 購買。" } }
+      }
+    },
+    "Local sample data": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Local sample data" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ローカルのサンプルデータ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "로컬 샘플 데이터" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "本地示例数据" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "本機範例資料" } }
+      }
+    },
+    "On": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "On" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "オン" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "켬" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "开启" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "開啟" } }
+      }
+    },
+    "The demo turns off when QuotaGlance is relaunched.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The demo turns off when QuotaGlance is relaunched." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "QuotaGlanceを再起動すると、デモはオフになります。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "QuotaGlance를 다시 실행하면 데모가 꺼집니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新启动 QuotaGlance 后，演示模式会关闭。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新啟動 QuotaGlance 後，示範模式會關閉。" } }
+      }
+    },
+    "Trial": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Trial" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "トライアル" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "체험" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "试用" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "試用" } }
+      }
+    },
+    "Wait for QuotaGlance to finish loading before enabling Demo Mode.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Wait for QuotaGlance to finish loading before enabling Demo Mode." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "QuotaGlanceの読み込みが完了してからデモモードを有効にしてください。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "QuotaGlance 로딩이 끝난 후 데모 모드를 활성화하세요." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请等待 QuotaGlance 加载完成后再开启演示模式。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "請等待 QuotaGlance 載入完成後再開啟示範模式。" } }
+      }
+    },
+    "Your real accounts, credentials, purchases, and settings are not changed.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Your real accounts, credentials, purchases, and settings are not changed." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "実際のアカウント、認証情報、購入、設定は変更されません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "실제 계정, 인증 정보, 구입 및 설정은 변경되지 않습니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "你的真实账户、凭据、购买和设置不会被更改。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "你的真實帳戶、憑證、購買與設定不會被更改。" } }
+      }
+    },
     "Credential Storage": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Credential Storage" } },

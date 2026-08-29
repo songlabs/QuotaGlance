@@ -184,6 +184,19 @@ Provider quota and reset values depend on compatibility-sensitive third-party se
 - [Support](https://songlabs.github.io/QuotaGlance/support/)
 - Support email: [songlabs.dev@gmail.com](mailto:songlabs.dev@gmail.com)
 
+## App Review Demo Mode
+
+QuotaGlance includes an App Store Review-only demonstration mode so reviewers can inspect the supported access levels without signing in to a private Codex or Claude account. In Settings, tap the Version row seven times, open **App Review Demo**, enable **Demo Mode**, and select Free, Trial, or Pro. Turn Demo Mode off from the same screen to restore the dashboard and shared snapshot that were present before the demo; the demo also turns off when the app is relaunched.
+
+Demo Mode reuses the existing screenshot/preview sample models, runs in Release builds, and is entered entirely through the app UI. It uses fixed local Codex and Claude sample accounts and quota values. It does not call provider APIs, start OAuth, read or write provider credentials, change the account registry, modify StoreKit transactions or the real entitlement, or overwrite the user's refresh, display-limit, default-provider, and Watch-account preferences. Purchase and Restore actions are disabled while Demo Mode is active.
+
+The selected Demo access level is applied through the same Free/Trial/Pro presentation policy used by production state:
+
+- Free shows the first account and 5H data on iPhone and Watch, uses the fixed four-hour automatic-refresh policy, and publishes the Widget Upgrade state.
+- Trial and Pro expose all sample accounts on iPhone, 5H and Weekly data, configurable refresh/display choices in the isolated Demo context, full Widget data, and up to two ordered Watch accounts.
+
+The iPhone publishes a clearly marked, non-credential Demo `SnapshotEnvelope` through the existing App Group and WatchConnectivity paths. The Widget reads that envelope directly; the Watch app and circular, rectangular, and inline complications read the same Watch cache. Keep the paired iPhone and Apple Watch available when enabling or changing Demo Mode so the latest application context can be delivered. Manual refresh in Demo Mode only reloads the local sample snapshots.
+
 ## Current verification boundary
 
 The shared `QuotaGlanceCore` package can be built and tested cross-platform. StoreKit entitlement initialization gates the first shared snapshot publication. Published Trial snapshots include the verified expiry date, allowing the Widget, Watch app, and complication to fail back to Free independently; all Watch surfaces derive their accounts from the same at-most-two-account selection. The `iOS CI` workflow is configured to run Xcode tests and an unsigned Release simulator build on macOS. The manually triggered TestFlight workflow archives, verifies, signs, and uploads the iOS app together with its iPhone / iPad Widget, Watch app, and Watch complication.

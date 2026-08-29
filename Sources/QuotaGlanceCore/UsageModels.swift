@@ -48,7 +48,7 @@ public enum QuotaDisplayLimit: String, Codable, CaseIterable, Equatable, Sendabl
     }
 }
 
-public enum AccessLevel: String, Codable, Equatable, Sendable {
+public enum AccessLevel: String, Codable, Equatable, Hashable, Sendable {
     case trial
     case free
     case pro
@@ -381,6 +381,9 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
     public let watchAccountIdentifiers: [UUID]
     public let accessLevel: AccessLevel
     public let proAccessExpiresAt: Date?
+    public let isAppReviewDemo: Bool
+    public let appReviewDemoDefaultProvider: AIProvider?
+    public let appReviewDemoSelectedAccountIdentifiers: [AIProvider: UUID]
 
     public init(
         version: Int = Self.currentVersion,
@@ -389,7 +392,10 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         accounts: [AccountDisplayMetadata] = [],
         watchAccountIdentifiers: [UUID] = [],
         accessLevel: AccessLevel = .free,
-        proAccessExpiresAt: Date? = nil
+        proAccessExpiresAt: Date? = nil,
+        isAppReviewDemo: Bool = false,
+        appReviewDemoDefaultProvider: AIProvider? = nil,
+        appReviewDemoSelectedAccountIdentifiers: [AIProvider: UUID] = [:]
     ) {
         self.version = version
         self.snapshots = snapshots
@@ -398,6 +404,9 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         self.watchAccountIdentifiers = WatchAccountSelection.normalized(watchAccountIdentifiers)
         self.accessLevel = accessLevel
         self.proAccessExpiresAt = proAccessExpiresAt
+        self.isAppReviewDemo = isAppReviewDemo
+        self.appReviewDemoDefaultProvider = appReviewDemoDefaultProvider
+        self.appReviewDemoSelectedAccountIdentifiers = appReviewDemoSelectedAccountIdentifiers
     }
 
     public func hasProFeatures(at date: Date = Date()) -> Bool {
@@ -423,7 +432,12 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
             accounts: accounts.filter { $0.id != accountIdentifier },
             watchAccountIdentifiers: watchAccountIdentifiers.filter { $0 != accountIdentifier },
             accessLevel: accessLevel,
-            proAccessExpiresAt: proAccessExpiresAt
+            proAccessExpiresAt: proAccessExpiresAt,
+            isAppReviewDemo: isAppReviewDemo,
+            appReviewDemoDefaultProvider: appReviewDemoDefaultProvider,
+            appReviewDemoSelectedAccountIdentifiers: appReviewDemoSelectedAccountIdentifiers.filter {
+                $0.value != accountIdentifier
+            }
         )
     }
 
@@ -498,6 +512,9 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         case watchAccountIdentifiers
         case accessLevel
         case proAccessExpiresAt
+        case isAppReviewDemo
+        case appReviewDemoDefaultProvider
+        case appReviewDemoSelectedAccountIdentifiers
     }
 
     public init(from decoder: Decoder) throws {
@@ -508,6 +525,15 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
         accounts = try container.decodeIfPresent([AccountDisplayMetadata].self, forKey: .accounts) ?? []
         accessLevel = try container.decodeIfPresent(AccessLevel.self, forKey: .accessLevel) ?? .free
         proAccessExpiresAt = try container.decodeIfPresent(Date.self, forKey: .proAccessExpiresAt)
+        isAppReviewDemo = try container.decodeIfPresent(Bool.self, forKey: .isAppReviewDemo) ?? false
+        appReviewDemoDefaultProvider = try container.decodeIfPresent(
+            AIProvider.self,
+            forKey: .appReviewDemoDefaultProvider
+        )
+        appReviewDemoSelectedAccountIdentifiers = try container.decodeIfPresent(
+            [AIProvider: UUID].self,
+            forKey: .appReviewDemoSelectedAccountIdentifiers
+        ) ?? [:]
         if let identifiers = try container.decodeIfPresent([UUID].self, forKey: .watchAccountIdentifiers) {
             watchAccountIdentifiers = WatchAccountSelection.normalized(identifiers)
         } else {
@@ -516,6 +542,29 @@ public struct SnapshotEnvelope: Codable, Equatable, Sendable {
                 : accounts.map(\.id)
             watchAccountIdentifiers = WatchAccountSelection.normalized(legacyIdentifiers)
         }
+    }
+}
+
+public enum AppReviewDemoWidgetPolicy {
+    public static func defaultProvider(in envelope: SnapshotEnvelope) -> AIProvider {
+        if let requested = envelope.appReviewDemoDefaultProvider,
+           envelope.accounts.contains(where: { $0.provider == requested }) {
+            return requested
+        }
+        return envelope.accounts.first?.provider
+            ?? envelope.snapshots.first?.provider
+            ?? .codex
+    }
+
+    public static func selectedAccountIdentifier(
+        for provider: AIProvider,
+        in envelope: SnapshotEnvelope
+    ) -> UUID? {
+        if let requested = envelope.appReviewDemoSelectedAccountIdentifiers[provider],
+           envelope.accounts.contains(where: { $0.id == requested && $0.provider == provider }) {
+            return requested
+        }
+        return envelope.accounts.first { $0.provider == provider }?.id
     }
 }
 

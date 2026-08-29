@@ -30,17 +30,25 @@ final class BackgroundRefreshScheduler {
 
     func appEnteredForeground() {
         isAppInBackground = false
-        if store?.effectiveRefreshInterval == .disabled {
+        if store?.isAppReviewDemoEnabled == true || store?.effectiveRefreshInterval == .disabled {
             cancelPendingRefresh()
         }
     }
 
     func appEnteredBackground() {
         isAppInBackground = true
+        guard store?.isAppReviewDemoEnabled != true else {
+            cancelPendingRefresh()
+            return
+        }
         scheduleNextRefresh()
     }
 
     private func automaticRefreshConfigurationDidChange() {
+        guard store?.isAppReviewDemoEnabled != true else {
+            cancelPendingRefresh()
+            return
+        }
         guard store?.effectiveRefreshInterval != .disabled else {
             cancelPendingRefresh()
             return
@@ -51,6 +59,10 @@ final class BackgroundRefreshScheduler {
     }
 
     private func scheduleNextRefresh(now: Date = Date()) {
+        guard store?.isAppReviewDemoEnabled != true else {
+            cancelPendingRefresh()
+            return
+        }
         guard let earliestBeginDate = store?.effectiveRefreshInterval
             .earliestBackgroundBeginDate(from: now)
         else {

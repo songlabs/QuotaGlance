@@ -88,6 +88,16 @@ struct ProviderPresentation: Equatable {
     var provider: AIProvider { account.provider }
 }
 
+private struct ProductionDashboardState {
+    let accounts: [ProviderAccount]
+    let states: [UUID: ProviderPresentation]
+    let providerErrors: [AIProvider: PresentationError]
+    let selectedAccountIdentifiers: [AIProvider: UUID]
+    let watchAccountIdentifiers: [UUID]
+    let appLanguage: AppLanguage
+    let wasForegroundAutomaticRefreshActive: Bool
+}
+
 @Observable
 @MainActor
 final class DashboardStore {
@@ -105,6 +115,9 @@ final class DashboardStore {
     var connectingProviders: Set<AIProvider> = []
     var isShowingSettings = false
     var isShowingUpgrade = false
+    var isShowingAppReviewDemo = false
+    private(set) var isAppReviewDemoEnabled = false
+    private(set) var appReviewDemoAccessLevel: AccessLevel = .pro
     private(set) var refreshInterval: AutomaticRefreshInterval {
         didSet {
             AutomaticRefreshPreferences.save(refreshInterval, to: settingsDefaults)
@@ -115,12 +128,23 @@ final class DashboardStore {
     private(set) var watchAccountIdentifiers: [UUID]
     private(set) var selectedAccountIdentifiers: [AIProvider: UUID]
     private var lastRefreshAttempts: [UUID: Date] = [:]
+    private var activeProductionOperationCount = 0
     private var foregroundAutomaticRefreshTask: Task<Void, Never>?
-    private var isForegroundAutomaticRefreshActive = false
+    private(set) var isForegroundAutomaticRefreshActive = false
+    private var productionStateBeforeDemo: ProductionDashboardState?
+    private var productionEnvelopeBeforeDemo: SnapshotEnvelope?
+    private var appReviewDemoReferenceDate = Date()
+    private var appReviewDemoDefaultProvider: AIProvider = .codex
+    private var appReviewDemoDisplayLimit: QuotaDisplayLimit = .fiveHour
+    private var appReviewDemoRefreshInterval: AutomaticRefreshInterval = .fourHours
+    private var suppressAppLanguageSideEffects = false
     var automaticRefreshConfigurationDidChange: (() -> Void)?
     var appLanguage: AppLanguage {
         didSet {
-            settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
+            guard !suppressAppLanguageSideEffects else { return }
+            if !isAppReviewDemoEnabled {
+                settingsDefaults.set(appLanguage.rawValue, forKey: AppLanguage.defaultsKey)
+            }
             publishSnapshots()
         }
     }
@@ -162,7 +186,8 @@ final class DashboardStore {
             cache.selectedAccountIdentifier(for: provider).map { (provider, $0) }
         })
 
-        let cachedSnapshots = cache.load()?.snapshots ?? []
+        let initialSnapshotRecovery = cache.recoverInterruptedAppReviewDemoSnapshot()
+        let cachedSnapshots = initialSnapshotRecovery.envelope?.snapshots ?? []
         var initialStates: [UUID: ProviderPresentation] = [:]
         for account in loadedAccounts {
             let exact = cachedSnapshots.first { $0.accountIdentifier == account.id }
@@ -210,6 +235,11 @@ final class DashboardStore {
             guard let self else { return false }
             return await self.refreshAllForWatch()
         }
+        if initialSnapshotRecovery.didRecover,
+           let restoredProductionEnvelope = initialSnapshotRecovery.envelope {
+            watchSync.send(restoredProductionEnvelope)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         purchaseManager.entitlementDidChange = { [weak self] in
             guard let self else { return }
             self.publishSnapshots()
@@ -219,19 +249,24 @@ final class DashboardStore {
     }
 
     var defaultProvider: AIProvider {
-        get { (cache as? AppGroupSnapshotCache)?.defaultProvider ?? .codex }
+        get {
+            if isAppReviewDemoEnabled { return appReviewDemoDefaultProvider }
+            return (cache as? AppGroupSnapshotCache)?.defaultProvider ?? .codex
+        }
         set {
+            if isAppReviewDemoEnabled {
+                appReviewDemoDefaultProvider = newValue
+                publishSnapshots()
+                return
+            }
             (cache as? AppGroupSnapshotCache)?.defaultProvider = newValue
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
 
-    private(set) var displayLimit: QuotaDisplayLimit {
-        get { (cache as? AppGroupSnapshotCache)?.displayLimit ?? .fiveHour }
-        set {
-            (cache as? AppGroupSnapshotCache)?.displayLimit = newValue
-            publishSnapshots()
-        }
+    var displayLimit: QuotaDisplayLimit {
+        if isAppReviewDemoEnabled { return appReviewDemoDisplayLimit }
+        return (cache as? AppGroupSnapshotCache)?.displayLimit ?? .fiveHour
     }
 
     var effectiveDisplayLimit: QuotaDisplayLimit {
@@ -240,34 +275,138 @@ final class DashboardStore {
 
     func accounts(for provider: AIProvider) -> [ProviderAccount] {
         let matching = accounts.filter { $0.provider == provider }.sorted { $0.ordinal < $1.ordinal }
-        guard !purchaseManager.hasProFeatures else { return matching }
+        guard !hasProFeatures else { return matching }
         guard let freeAccount = accounts.first,
               freeAccount.provider == provider else { return [] }
         return matching.filter { $0.id == freeAccount.id }
     }
 
-    var accessLevel: AccessLevel { purchaseManager.accessLevel }
-    var canAddAccount: Bool { purchaseManager.hasProFeatures || accounts.isEmpty }
-    var effectiveRefreshInterval: AutomaticRefreshInterval { refreshInterval.effective(for: accessLevel) }
+    var accessLevel: AccessLevel {
+        isAppReviewDemoEnabled ? appReviewDemoAccessLevel : purchaseManager.accessLevel
+    }
+    var hasProFeatures: Bool { accessLevel.hasProFeatures }
+    var canAddAccount: Bool {
+        !isAppReviewDemoEnabled && (hasProFeatures || accounts.isEmpty)
+    }
+    var canManageAccounts: Bool { !isAppReviewDemoEnabled }
+    var canEnableAppReviewDemo: Bool {
+        !isAppReviewDemoEnabled
+            && purchaseManager.isEntitlementLoaded
+            && activeProductionOperationCount == 0
+    }
+    var effectiveRefreshInterval: AutomaticRefreshInterval {
+        let storedInterval = isAppReviewDemoEnabled ? appReviewDemoRefreshInterval : refreshInterval
+        return storedInterval.effective(for: accessLevel)
+    }
     var effectiveWatchAccountIdentifiers: [UUID] {
-        purchaseManager.hasProFeatures
+        hasProFeatures
             ? watchAccountIdentifiers
             : accounts.first.map { [$0.id] } ?? []
     }
 
-    func requirePro() { isShowingUpgrade = true }
+    func requirePro() {
+        if isAppReviewDemoEnabled {
+            isShowingAppReviewDemo = true
+        } else {
+            isShowingUpgrade = true
+        }
+    }
+
+    func enableAppReviewDemo() {
+        guard canEnableAppReviewDemo else { return }
+        let productionEnvelope: SnapshotEnvelope?
+        do {
+            productionEnvelope = try cache.prepareAppReviewDemoSnapshot()
+        } catch {
+            return
+        }
+        productionStateBeforeDemo = ProductionDashboardState(
+            accounts: accounts,
+            states: states,
+            providerErrors: providerErrors,
+            selectedAccountIdentifiers: selectedAccountIdentifiers,
+            watchAccountIdentifiers: watchAccountIdentifiers,
+            appLanguage: appLanguage,
+            wasForegroundAutomaticRefreshActive: isForegroundAutomaticRefreshActive
+        )
+        productionEnvelopeBeforeDemo = productionEnvelope
+        appReviewDemoReferenceDate = Date()
+        appReviewDemoAccessLevel = .pro
+        appReviewDemoDefaultProvider = .codex
+        appReviewDemoDisplayLimit = .fiveHour
+        appReviewDemoRefreshInterval = .fourHours
+        isAppReviewDemoEnabled = true
+        isShowingUpgrade = false
+        stopForegroundAutomaticRefresh()
+
+        let presentations = PreviewFactory.appReviewDemoStates(updatedAt: appReviewDemoReferenceDate)
+        accounts = presentations.map(\.account)
+        states = Dictionary(uniqueKeysWithValues: presentations.map { ($0.account.id, $0) })
+        providerErrors = [:]
+        connectingProviders = []
+        selectedAccountIdentifiers = Dictionary(uniqueKeysWithValues: AIProvider.allCases.compactMap { provider in
+            accounts.first(where: { $0.provider == provider }).map { (provider, $0.id) }
+        })
+        watchAccountIdentifiers = WatchAccountSelection.normalized([
+            PreviewFactory.codexAccount.id,
+            PreviewFactory.claudeAccount.id,
+        ])
+        publishSnapshots()
+        automaticRefreshConfigurationDidChange?()
+    }
+
+    func disableAppReviewDemo() {
+        guard isAppReviewDemoEnabled, let productionStateBeforeDemo else { return }
+        isAppReviewDemoEnabled = false
+        accounts = productionStateBeforeDemo.accounts
+        states = productionStateBeforeDemo.states
+        providerErrors = productionStateBeforeDemo.providerErrors
+        selectedAccountIdentifiers = productionStateBeforeDemo.selectedAccountIdentifiers
+        watchAccountIdentifiers = productionStateBeforeDemo.watchAccountIdentifiers
+        suppressAppLanguageSideEffects = true
+        appLanguage = productionStateBeforeDemo.appLanguage
+        suppressAppLanguageSideEffects = false
+        isForegroundAutomaticRefreshActive = productionStateBeforeDemo.wasForegroundAutomaticRefreshActive
+        self.productionStateBeforeDemo = nil
+        restoreProductionSharedSnapshot()
+        productionEnvelopeBeforeDemo = nil
+        isShowingAppReviewDemo = false
+        restartForegroundAutomaticRefresh()
+        automaticRefreshConfigurationDidChange?()
+    }
+
+    func setAppReviewDemoAccessLevel(_ accessLevel: AccessLevel) {
+        guard isAppReviewDemoEnabled else { return }
+        appReviewDemoAccessLevel = accessLevel
+        publishSnapshots()
+        automaticRefreshConfigurationDidChange?()
+    }
 
     func updateRefreshInterval(_ interval: AutomaticRefreshInterval) {
-        guard purchaseManager.hasProFeatures else { return }
+        guard hasProFeatures else { return }
+        if isAppReviewDemoEnabled {
+            appReviewDemoRefreshInterval = interval
+            automaticRefreshConfigurationDidChange?()
+            return
+        }
         refreshInterval = interval
     }
 
     func updateDisplayLimit(_ limit: QuotaDisplayLimit) {
-        guard purchaseManager.hasProFeatures else { return }
-        displayLimit = limit
+        guard hasProFeatures else { return }
+        if isAppReviewDemoEnabled {
+            appReviewDemoDisplayLimit = limit
+        } else {
+            (cache as? AppGroupSnapshotCache)?.displayLimit = limit
+        }
+        publishSnapshots()
     }
 
     func startForegroundAutomaticRefresh() {
+        guard !isAppReviewDemoEnabled else {
+            stopForegroundAutomaticRefresh()
+            return
+        }
         isForegroundAutomaticRefreshActive = true
         restartForegroundAutomaticRefresh()
     }
@@ -279,10 +418,18 @@ final class DashboardStore {
     }
 
     func refreshAccess(previousAccessLevel: AccessLevel? = nil) async {
+        guard !isAppReviewDemoEnabled else {
+            publishSnapshots()
+            return
+        }
         await purchaseManager.refreshEntitlements()
     }
 
     func performBackgroundAutomaticRefresh() async -> Bool {
+        if isAppReviewDemoEnabled {
+            reloadAppReviewDemoData()
+            return true
+        }
         await purchaseManager.refreshEntitlements()
         guard !Task.isCancelled else { return false }
         return await refreshAll(force: false)
@@ -300,7 +447,9 @@ final class DashboardStore {
     func selectAccount(_ accountIdentifier: UUID, for provider: AIProvider) {
         guard accounts.contains(where: { $0.id == accountIdentifier && $0.provider == provider }) else { return }
         selectedAccountIdentifiers[provider] = accountIdentifier
-        cache.setSelectedAccountIdentifier(accountIdentifier, for: provider)
+        if !isAppReviewDemoEnabled {
+            cache.setSelectedAccountIdentifier(accountIdentifier, for: provider)
+        }
         publishSnapshots()
     }
 
@@ -314,7 +463,7 @@ final class DashboardStore {
 
     @discardableResult
     func toggleWatchSelection(_ accountIdentifier: UUID) -> Bool {
-        guard purchaseManager.hasProFeatures else {
+        guard hasProFeatures else {
             requirePro()
             return false
         }
@@ -330,12 +479,15 @@ final class DashboardStore {
             updated = added
         }
         watchAccountIdentifiers = updated
-        cache.setWatchAccountIdentifiers(updated)
+        if !isAppReviewDemoEnabled {
+            cache.setWatchAccountIdentifiers(updated)
+        }
         publishSnapshots()
         return true
     }
 
     func renameAccount(_ accountIdentifier: UUID, name: String) {
+        guard !isAppReviewDemoEnabled else { return }
         guard let account = accounts.first(where: { $0.id == accountIdentifier }) else { return }
         let updatedAccount = account.replacingCustomDisplayName(name)
         registry.update(updatedAccount, in: &accounts)
@@ -345,8 +497,12 @@ final class DashboardStore {
 
     @discardableResult
     func refreshAll(force: Bool) async -> Bool {
+        if isAppReviewDemoEnabled {
+            reloadAppReviewDemoData()
+            return true
+        }
         let now = Date()
-        let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        let activeAccounts = hasProFeatures ? accounts : Array(accounts.prefix(1))
         var succeeded = true
         for account in activeAccounts where states[account.id]?.isConnected == true {
             if !effectiveRefreshInterval.shouldRefresh(
@@ -369,11 +525,15 @@ final class DashboardStore {
     }
 
     private func refreshAllForWatch() async -> Bool {
+        if isAppReviewDemoEnabled {
+            reloadAppReviewDemoData()
+            return true
+        }
         await purchaseManager.refreshEntitlements()
         let selected = WatchRefreshScope.accountIdentifiers(
             accounts: accounts.map(\.id),
             selectedAccountIdentifiers: watchAccountIdentifiers,
-            hasProFeatures: purchaseManager.hasProFeatures
+            hasProFeatures: hasProFeatures
         )
         let eligibleAccounts = accounts.filter { selected.contains($0.id) }
         let connectedAccounts = eligibleAccounts.filter { states[$0.id]?.isConnected == true }
@@ -389,6 +549,9 @@ final class DashboardStore {
     }
 
     func backfillAccountIdentityLabels() async {
+        guard !isAppReviewDemoEnabled else { return }
+        activeProductionOperationCount += 1
+        defer { activeProductionOperationCount -= 1 }
         var didUpdateAccount = false
         for account in accounts where account.identityLabel == nil && states[account.id]?.isConnected == true {
             guard let provider = providers[account.provider] else { continue }
@@ -414,12 +577,19 @@ final class DashboardStore {
         _ accountIdentifier: UUID,
         reschedulesForegroundAutomaticRefresh: Bool = true
     ) async -> Bool {
+        if isAppReviewDemoEnabled {
+            guard accounts.contains(where: { $0.id == accountIdentifier }) else { return false }
+            reloadAppReviewDemoData()
+            return true
+        }
         guard let account = accounts.first(where: { $0.id == accountIdentifier }),
               let usageProvider = providers[account.provider],
               states[accountIdentifier]?.isConnected == true,
               states[accountIdentifier]?.isRefreshing == false
         else { return false }
 
+        activeProductionOperationCount += 1
+        defer { activeProductionOperationCount -= 1 }
         states[accountIdentifier]?.isRefreshing = true
         states[accountIdentifier]?.error = nil
         lastRefreshAttempts[accountIdentifier] = Date()
@@ -451,11 +621,17 @@ final class DashboardStore {
     }
 
     func addAccount(_ provider: AIProvider) async {
+        guard !isAppReviewDemoEnabled else {
+            isShowingAppReviewDemo = true
+            return
+        }
         guard canAddAccount else {
             requirePro()
             return
         }
         guard let usageProvider = providers[provider], !connectingProviders.contains(provider) else { return }
+        activeProductionOperationCount += 1
+        defer { activeProductionOperationCount -= 1 }
         let pendingAccount = registry.makeAccount(for: provider, in: accounts)
         connectingProviders.insert(provider)
         providerErrors[provider] = nil
@@ -514,10 +690,13 @@ final class DashboardStore {
     }
 
     func reconnect(_ accountIdentifier: UUID) async {
+        guard !isAppReviewDemoEnabled else { return }
         guard let account = accounts.first(where: { $0.id == accountIdentifier }),
               let usageProvider = providers[account.provider]
         else { return }
 
+        activeProductionOperationCount += 1
+        defer { activeProductionOperationCount -= 1 }
         states[accountIdentifier]?.isRefreshing = true
         states[accountIdentifier]?.error = nil
         do {
@@ -540,10 +719,13 @@ final class DashboardStore {
     }
 
     func deleteAccount(_ accountIdentifier: UUID) async {
+        guard !isAppReviewDemoEnabled else { return }
         guard let account = accounts.first(where: { $0.id == accountIdentifier }),
               let usageProvider = providers[account.provider]
         else { return }
 
+        activeProductionOperationCount += 1
+        defer { activeProductionOperationCount -= 1 }
         do {
             try await usageProvider.disconnect(accountIdentifier: accountIdentifier)
             registry.remove(account, from: &accounts)
@@ -577,11 +759,20 @@ final class DashboardStore {
     }
 
     private func publishSnapshots() {
-        guard EntitlementPublicationPolicy.canPublish(
-            isEntitlementLoaded: purchaseManager.isEntitlementLoaded
-        ) else { return }
-        let entitledAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        if !isAppReviewDemoEnabled {
+            guard EntitlementPublicationPolicy.canPublish(
+                isEntitlementLoaded: purchaseManager.isEntitlementLoaded
+            ) else { return }
+        }
+        let entitledAccounts = hasProFeatures ? accounts : Array(accounts.prefix(1))
         let snapshots = entitledAccounts.compactMap { states[$0.id]?.snapshot }
+        let entitledAccountIdentifiers = Set(entitledAccounts.map(\.id))
+        let demoSelectedAccountIdentifiers = selectedAccountIdentifiers.filter {
+            entitledAccountIdentifiers.contains($0.value)
+        }
+        let demoDefaultProvider = entitledAccounts.contains(where: { $0.provider == defaultProvider })
+            ? defaultProvider
+            : entitledAccounts.first?.provider
         let envelope = SnapshotEnvelope(
             snapshots: snapshots,
             displayLimit: effectiveDisplayLimit,
@@ -595,10 +786,39 @@ final class DashboardStore {
             },
             watchAccountIdentifiers: effectiveWatchAccountIdentifiers,
             accessLevel: accessLevel,
-            proAccessExpiresAt: accessLevel == .trial ? purchaseManager.trialEndsAt : nil
+            proAccessExpiresAt: accessLevel == .trial
+                ? (isAppReviewDemoEnabled
+                   ? appReviewDemoReferenceDate.addingTimeInterval(6 * 24 * 60 * 60)
+                   : purchaseManager.trialEndsAt)
+                : nil,
+            isAppReviewDemo: isAppReviewDemoEnabled,
+            appReviewDemoDefaultProvider: isAppReviewDemoEnabled ? demoDefaultProvider : nil,
+            appReviewDemoSelectedAccountIdentifiers: isAppReviewDemoEnabled
+                ? demoSelectedAccountIdentifiers
+                : [:]
         )
         try? cache.save(envelope)
         watchSync.send(envelope)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func reloadAppReviewDemoData(updatedAt: Date = Date()) {
+        guard isAppReviewDemoEnabled else { return }
+        let presentations = PreviewFactory.appReviewDemoStates(updatedAt: updatedAt)
+        accounts = presentations.map(\.account)
+        states = Dictionary(uniqueKeysWithValues: presentations.map { ($0.account.id, $0) })
+        publishSnapshots()
+    }
+
+    private func restoreProductionSharedSnapshot() {
+        let productionEnvelope: SnapshotEnvelope
+        do {
+            productionEnvelope = try cache.restoreProductionSnapshotAfterAppReviewDemo()
+        } catch {
+            productionEnvelope = productionEnvelopeBeforeDemo ?? SnapshotEnvelope(snapshots: [])
+            try? cache.save(productionEnvelope)
+        }
+        watchSync.send(productionEnvelope)
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -620,6 +840,7 @@ final class DashboardStore {
         foregroundAutomaticRefreshTask?.cancel()
         foregroundAutomaticRefreshTask = nil
         guard isForegroundAutomaticRefreshActive,
+              !isAppReviewDemoEnabled,
               purchaseManager.isEntitlementLoaded,
               let nextRefreshDate = nextForegroundAutomaticRefreshDate(now: now)
         else { return }
@@ -641,7 +862,7 @@ final class DashboardStore {
     }
 
     private func nextForegroundAutomaticRefreshDate(now: Date) -> Date? {
-        let activeAccounts = purchaseManager.hasProFeatures ? accounts : Array(accounts.prefix(1))
+        let activeAccounts = hasProFeatures ? accounts : Array(accounts.prefix(1))
         return activeAccounts
             .filter { states[$0.id]?.isConnected == true }
             .compactMap { account in

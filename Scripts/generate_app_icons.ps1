@@ -1,5 +1,6 @@
 param(
-    [string]$MasterPath = "Design/QuotaGlanceIconMaster.png"
+    [string]$MasterPath = "Design/QuotaGlanceIconMaster.png",
+    [string]$WatchBackgroundColor = "#315F91"
 )
 
 Set-StrictMode -Version Latest
@@ -12,6 +13,65 @@ if (-not (Test-Path -LiteralPath $resolvedMaster -PathType Leaf)) {
 }
 
 Add-Type -AssemblyName System.Drawing
+
+function Convert-HexColor {
+    param([string]$Value)
+
+    if ($Value -notmatch '^#[0-9A-Fa-f]{6}$') {
+        throw "Watch background color must use #RRGGBB: $Value"
+    }
+    return [System.Drawing.ColorTranslator]::FromHtml($Value)
+}
+
+function New-WatchIconSource {
+    param(
+        [System.Drawing.Image]$Source,
+        [System.Drawing.Color]$TargetColor
+    )
+
+    $bitmap = [System.Drawing.Bitmap]::new(
+        $Source.Width,
+        $Source.Height,
+        [System.Drawing.Imaging.PixelFormat]::Format24bppRgb
+    )
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.DrawImage($Source, 0, 0, $Source.Width, $Source.Height)
+    } finally {
+        $graphics.Dispose()
+    }
+
+    $bounds = [System.Drawing.Rectangle]::new(0, 0, $bitmap.Width, $bitmap.Height)
+    $bits = $bitmap.LockBits(
+        $bounds,
+        [System.Drawing.Imaging.ImageLockMode]::ReadWrite,
+        [System.Drawing.Imaging.PixelFormat]::Format24bppRgb
+    )
+    try {
+        $length = [Math]::Abs($bits.Stride) * $bitmap.Height
+        $pixels = [byte[]]::new($length)
+        [System.Runtime.InteropServices.Marshal]::Copy($bits.Scan0, $pixels, 0, $length)
+        $blend = 0.82
+        for ($y = 0; $y -lt $bitmap.Height; $y++) {
+            $row = $y * $bits.Stride
+            for ($x = 0; $x -lt $bitmap.Width; $x++) {
+                $offset = $row + ($x * 3)
+                $blue = $pixels[$offset]
+                $green = $pixels[$offset + 1]
+                $red = $pixels[$offset + 2]
+                if ($red -lt 32 -and $green -lt 42 -and $blue -lt 60) {
+                    $pixels[$offset] = [byte][Math]::Round($blue * (1 - $blend) + $TargetColor.B * $blend)
+                    $pixels[$offset + 1] = [byte][Math]::Round($green * (1 - $blend) + $TargetColor.G * $blend)
+                    $pixels[$offset + 2] = [byte][Math]::Round($red * (1 - $blend) + $TargetColor.R * $blend)
+                }
+            }
+        }
+        [System.Runtime.InteropServices.Marshal]::Copy($pixels, 0, $bits.Scan0, $length)
+    } finally {
+        $bitmap.UnlockBits($bits)
+    }
+    return $bitmap
+}
 
 function Write-RgbSquarePng {
     param(
@@ -83,9 +143,16 @@ try {
     Write-CatalogImages -Source $master -CatalogDirectory (
         Join-Path $repoRoot "QuotaGlanceApp/Resources/Assets.xcassets/AppIcon.appiconset"
     )
-    Write-CatalogImages -Source $master -CatalogDirectory (
-        Join-Path $repoRoot "QuotaGlanceWatch/Resources/Assets.xcassets/AppIcon.appiconset"
+    $watchMaster = New-WatchIconSource -Source $master -TargetColor (
+        Convert-HexColor -Value $WatchBackgroundColor
     )
+    try {
+        Write-CatalogImages -Source $watchMaster -CatalogDirectory (
+            Join-Path $repoRoot "QuotaGlanceWatch/Resources/Assets.xcassets/AppIcon.appiconset"
+        )
+    } finally {
+        $watchMaster.Dispose()
+    }
     foreach ($brandSize in @(128, 256, 384)) {
         Write-RgbSquarePng -Source $master -PixelSize $brandSize -OutputPath (
             Join-Path $repoRoot "SharedUI/Resources/QuotaGlanceBrand.xcassets/QuotaGlanceBrandIcon.imageset/QuotaGlanceBrandIcon-$brandSize.png"
@@ -106,3 +173,4 @@ try {
 }
 
 Write-Output "Generated RGB AppIcon and shared brand assets from $resolvedMaster"
+Write-Output "Applied Watch-only lighter background $WatchBackgroundColor"

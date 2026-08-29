@@ -192,6 +192,69 @@ struct UsageModelsTests {
 
         #expect(envelope.accessLevel == .free)
         #expect(!envelope.accessLevel.hasProFeatures)
+        #expect(!envelope.isAppReviewDemo)
+    }
+
+    @Test("App Review Demo marker round-trips without changing access policy")
+    func appReviewDemoMarker() throws {
+        let selectedCodexAccount = UUID()
+        let envelope = SnapshotEnvelope(
+            snapshots: [UsageSnapshot(
+                provider: .codex,
+                accountIdentifier: selectedCodexAccount,
+                session: nil,
+                weekly: nil,
+                updatedAt: .distantPast
+            )],
+            displayLimit: .weekly,
+            accounts: [AccountDisplayMetadata(
+                id: selectedCodexAccount,
+                provider: .codex,
+                ordinal: 2,
+                displayName: "Planning"
+            )],
+            accessLevel: .trial,
+            proAccessExpiresAt: .distantFuture,
+            isAppReviewDemo: true,
+            appReviewDemoDefaultProvider: .codex,
+            appReviewDemoSelectedAccountIdentifiers: [.codex: selectedCodexAccount]
+        )
+        let decoded = try SnapshotCoding.decode(SnapshotCoding.encode(envelope))
+
+        #expect(decoded.isAppReviewDemo)
+        #expect(decoded.hasProFeatures())
+        #expect(decoded.effectiveDisplayLimit() == .weekly)
+        #expect(AppReviewDemoWidgetPolicy.defaultProvider(in: decoded) == .codex)
+        #expect(
+            AppReviewDemoWidgetPolicy.selectedAccountIdentifier(for: .codex, in: decoded)
+                == selectedCodexAccount
+        )
+        #expect(AppReviewDemoWidgetPolicy.selectedAccountIdentifier(for: .claude, in: decoded) == nil)
+    }
+
+    @Test("App Review Demo Widget selection falls back to an account in the published policy")
+    func appReviewDemoWidgetSelectionFallback() {
+        let freeAccount = UUID()
+        let envelope = SnapshotEnvelope(
+            snapshots: [],
+            accounts: [AccountDisplayMetadata(
+                id: freeAccount,
+                provider: .codex,
+                ordinal: 1,
+                displayName: "Studio"
+            )],
+            accessLevel: .free,
+            isAppReviewDemo: true,
+            appReviewDemoDefaultProvider: .claude,
+            appReviewDemoSelectedAccountIdentifiers: [.codex: UUID(), .claude: UUID()]
+        )
+
+        #expect(AppReviewDemoWidgetPolicy.defaultProvider(in: envelope) == .codex)
+        #expect(
+            AppReviewDemoWidgetPolicy.selectedAccountIdentifier(for: .codex, in: envelope)
+                == freeAccount
+        )
+        #expect(AppReviewDemoWidgetPolicy.selectedAccountIdentifier(for: .claude, in: envelope) == nil)
     }
 
     @Test("Account display name follows custom, identity, then fallback priority")
