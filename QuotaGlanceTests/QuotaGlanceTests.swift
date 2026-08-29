@@ -444,7 +444,12 @@ private final class DemoIsolationUsageProvider: UsageProvider {
 
     func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot {
         refreshCount += 1
-        return UsageSnapshot(provider: provider, updatedAt: Date())
+        return UsageSnapshot(
+            provider: provider,
+            session: nil,
+            weekly: nil,
+            updatedAt: Date()
+        )
     }
 }
 
