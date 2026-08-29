@@ -62,7 +62,7 @@ struct AppReviewDemoView: View {
                     ))
                 }
 
-                Section(AppLocalization.string("Demo Access", locale: locale)) {
+                Section {
                     Picker(
                         AppLocalization.string("Demo Access", locale: locale),
                         selection: Binding(
@@ -76,6 +76,8 @@ struct AppReviewDemoView: View {
                     }
                     .pickerStyle(.segmented)
                     .disabled(!store.isAppReviewDemoEnabled)
+                } header: {
+                    Text(AppLocalization.string("Demo Access", locale: locale))
                 } footer: {
                     Text(AppLocalization.string(
                         "Your real accounts, credentials, purchases, and settings are not changed.",
