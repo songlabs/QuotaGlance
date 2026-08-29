@@ -265,13 +265,16 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertEqual(registry.load(), [productionAccount])
         XCTAssertEqual(store.appLanguage, .japanese)
 
+        await store.addAccount(.codex)
         let appRefreshSucceeded = await store.refreshAll(force: true)
         let watchRefreshSucceeded = await watchSync.requestRefresh()
         XCTAssertTrue(appRefreshSucceeded)
         XCTAssertTrue(watchRefreshSucceeded)
+        XCTAssertTrue(store.isShowingAppReviewDemo)
         XCTAssertEqual(provider.connectCount, 0)
         XCTAssertEqual(provider.refreshCount, 0)
         XCTAssertEqual(provider.disconnectCount, 0)
+        XCTAssertEqual(registry.load(), [productionAccount])
 
         store.setAppReviewDemoAccessLevel(.free)
         let freeEnvelope = try XCTUnwrap(cache.load())
