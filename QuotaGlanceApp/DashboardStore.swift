@@ -357,6 +357,9 @@ final class DashboardStore {
 
     func disableAppReviewDemo() {
         guard isAppReviewDemoEnabled, let productionStateBeforeDemo else { return }
+        let shouldResumeForegroundAutomaticRefresh =
+            productionStateBeforeDemo.wasForegroundAutomaticRefreshActive
+            || isForegroundAutomaticRefreshActive
         isAppReviewDemoEnabled = false
         accounts = productionStateBeforeDemo.accounts
         states = productionStateBeforeDemo.states
@@ -366,7 +369,7 @@ final class DashboardStore {
         suppressAppLanguageSideEffects = true
         appLanguage = productionStateBeforeDemo.appLanguage
         suppressAppLanguageSideEffects = false
-        isForegroundAutomaticRefreshActive = productionStateBeforeDemo.wasForegroundAutomaticRefreshActive
+        isForegroundAutomaticRefreshActive = shouldResumeForegroundAutomaticRefresh
         self.productionStateBeforeDemo = nil
         restoreProductionSharedSnapshot()
         productionEnvelopeBeforeDemo = nil
@@ -403,10 +406,6 @@ final class DashboardStore {
     }
 
     func startForegroundAutomaticRefresh() {
-        guard !isAppReviewDemoEnabled else {
-            stopForegroundAutomaticRefresh()
-            return
-        }
         isForegroundAutomaticRefreshActive = true
         restartForegroundAutomaticRefresh()
     }

@@ -339,6 +339,17 @@ final class QuotaGlanceTests: XCTestCase {
             AppLanguage.japanese.rawValue
         )
         XCTAssertEqual(watchSync.sentEnvelopes.last, productionEnvelope)
+
+        // Cover the opposite startup order: Demo can be enabled after
+        // entitlements load but before DashboardView records the active scene.
+        store.stopForegroundAutomaticRefresh()
+        XCTAssertFalse(store.isForegroundAutomaticRefreshActive)
+        store.enableAppReviewDemo()
+        XCTAssertFalse(store.isForegroundAutomaticRefreshActive)
+        store.startForegroundAutomaticRefresh()
+        XCTAssertTrue(store.isForegroundAutomaticRefreshActive)
+        store.disableAppReviewDemo()
+        XCTAssertTrue(store.isForegroundAutomaticRefreshActive)
         store.stopForegroundAutomaticRefresh()
     }
 
