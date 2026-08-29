@@ -373,6 +373,7 @@ final class DashboardStore {
         self.productionStateBeforeDemo = nil
         restoreProductionSharedSnapshot()
         productionEnvelopeBeforeDemo = nil
+        publishSnapshots()
         isShowingAppReviewDemo = false
         restartForegroundAutomaticRefresh()
         automaticRefreshConfigurationDidChange?()

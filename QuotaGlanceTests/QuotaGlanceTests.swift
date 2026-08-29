@@ -348,8 +348,32 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertFalse(store.isForegroundAutomaticRefreshActive)
         store.startForegroundAutomaticRefresh()
         XCTAssertTrue(store.isForegroundAutomaticRefreshActive)
+        let externallyUpdatedTrialEnd = Date().addingTimeInterval(3_600)
+        purchaseManager.configureForScreenshot(
+            accessLevel: .trial,
+            trialEndsAt: externallyUpdatedTrialEnd,
+            hasTrialTransaction: true,
+            lifetimePrice: "Test"
+        )
+        XCTAssertEqual(store.accessLevel, .pro)
         store.disableAppReviewDemo()
         XCTAssertTrue(store.isForegroundAutomaticRefreshActive)
+        XCTAssertEqual(store.accessLevel, .trial)
+        let externallyUpdatedEnvelope = try XCTUnwrap(cache.load())
+        XCTAssertFalse(externallyUpdatedEnvelope.isAppReviewDemo)
+        XCTAssertEqual(externallyUpdatedEnvelope.accessLevel, .trial)
+        XCTAssertEqual(externallyUpdatedEnvelope.proAccessExpiresAt, externallyUpdatedTrialEnd)
+        XCTAssertEqual(watchSync.sentEnvelopes.last, externallyUpdatedEnvelope)
+        XCTAssertNotEqual(
+            TrialEntitlementTaskIdentity(
+                accessLevel: .trial,
+                isAppReviewDemoEnabled: true
+            ),
+            TrialEntitlementTaskIdentity(
+                accessLevel: .trial,
+                isAppReviewDemoEnabled: false
+            )
+        )
         store.stopForegroundAutomaticRefresh()
     }
 

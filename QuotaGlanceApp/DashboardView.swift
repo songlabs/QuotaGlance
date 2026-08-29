@@ -1,6 +1,11 @@
 import QuotaGlanceCore
 import SwiftUI
 
+struct TrialEntitlementTaskIdentity: Hashable {
+    let accessLevel: AccessLevel
+    let isAppReviewDemoEnabled: Bool
+}
+
 struct DashboardView: View {
     @Bindable var store: DashboardStore
     let runsStartupTasks: Bool
@@ -57,14 +62,21 @@ struct DashboardView: View {
                 store.startForegroundAutomaticRefresh()
             }
         }
-        .task(id: store.accessLevel) {
+        .task(id: TrialEntitlementTaskIdentity(
+            accessLevel: store.accessLevel,
+            isAppReviewDemoEnabled: store.isAppReviewDemoEnabled
+        )) {
             guard runsStartupTasks, !store.isAppReviewDemoEnabled else { return }
             if store.accessLevel == .trial {
                 let remaining = store.purchaseManager.trialTimeRemaining
                 if remaining > 0 {
-                    try? await Task.sleep(for: .seconds(remaining))
-                    await store.refreshAccess()
+                    do {
+                        try await Task.sleep(for: .seconds(remaining))
+                    } catch {
+                        return
+                    }
                 }
+                await store.refreshAccess()
             }
         }
         .onChange(of: scenePhase) { _, newValue in
