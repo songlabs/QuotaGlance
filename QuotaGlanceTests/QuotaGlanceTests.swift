@@ -207,7 +207,7 @@ final class QuotaGlanceTests: XCTestCase {
         )
         let productionEnvelope = SnapshotEnvelope(
             snapshots: [productionSnapshot],
-            displayLimit: .weekly,
+            displayLimit: .fiveHour,
             accounts: [AccountDisplayMetadata(
                 id: productionAccount.id,
                 provider: .codex,
