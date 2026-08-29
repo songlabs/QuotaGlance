@@ -5,6 +5,9 @@ import XCTest
 
 final class QuotaGlanceTests: XCTestCase {
     @MainActor
+    private static var retainedRelaunchStores: [DashboardStore] = []
+
+    @MainActor
     func testRestoreOperationReturnsSuccessAfterSyncAndRefresh() async {
         var events: [String] = []
 
@@ -336,6 +339,7 @@ final class QuotaGlanceTests: XCTestCase {
             AppLanguage.japanese.rawValue
         )
         XCTAssertEqual(watchSync.sentEnvelopes.last, productionEnvelope)
+        store.stopForegroundAutomaticRefresh()
     }
 
     @MainActor
@@ -417,6 +421,11 @@ final class QuotaGlanceTests: XCTestCase {
         XCTAssertEqual(secondWatchSync.sentEnvelopes, [productionEnvelope])
         XCTAssertNil(cacheDefaults.object(forKey: AppGroupSnapshotCache.appReviewDemoBackupActiveKey))
         XCTAssertNil(cacheDefaults.data(forKey: AppGroupSnapshotCache.appReviewDemoProductionSnapshotKey))
+
+        // A force-quit discards both process heaps without running app object
+        // deinitializers. Retaining these stores gives the in-process test the
+        // same lifetime boundary while it verifies the persisted recovery path.
+        Self.retainedRelaunchStores.append(contentsOf: [firstStore, secondStore])
     }
 }
 
