@@ -263,6 +263,9 @@ private struct ProviderGroup: View {
                             state: state,
                             showsWeekly: store.hasProFeatures,
                             refresh: { await store.refresh(account.id) },
+                            loadResetCreditDetails: {
+                                await store.loadResetCreditDetails(account.id)
+                            },
                             reconnect: { await store.reconnect(account.id) }
                         )
                     }
@@ -290,6 +293,7 @@ private struct AccountSection: View {
     let state: ProviderPresentation
     let showsWeekly: Bool
     let refresh: () async -> Void
+    let loadResetCreditDetails: () async -> Void
     let reconnect: () async -> Void
     @Environment(\.locale) private var locale
 
@@ -302,7 +306,16 @@ private struct AccountSection: View {
                     showsWeekly: showsWeekly,
                     isRefreshing: state.isRefreshing,
                     errorMessage: state.error?.message(locale: locale),
+                    resetCreditDetails: state.resetCreditDetails,
+                    isLoadingResetCreditDetails: state.isLoadingResetCreditDetails,
+                    resetCreditDetailsErrorMessage: state.resetCreditDetailsError == nil
+                        ? nil
+                        : AppLocalization.string(
+                            "Unable to load reset details. Try again.",
+                            locale: locale
+                        ),
                     refresh: refresh,
+                    loadResetCreditDetails: loadResetCreditDetails,
                     reconnect: state.isConnected ? nil : reconnect
                 )
             } else if state.isConnected, state.isRefreshing {

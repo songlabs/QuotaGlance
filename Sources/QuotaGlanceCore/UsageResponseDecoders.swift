@@ -32,7 +32,21 @@ public enum UsageResponseDecoder {
             throw UsageProviderError.schemaChanged
         }
 
-        return UsageSnapshot(provider: .codex, session: session, weekly: weekly, updatedAt: now)
+        return UsageSnapshot(
+            provider: .codex,
+            session: session,
+            weekly: weekly,
+            availableResetCount: response.rateLimitResetCredits?.availableCount,
+            updatedAt: now
+        )
+    }
+
+    public static func decodeCodexResetCredits(_ data: Data) throws -> CodexResetCreditDetails {
+        do {
+            return try configuredDecoder().decode(CodexResetCreditDetails.self, from: data)
+        } catch {
+            throw UsageProviderError.schemaChanged
+        }
     }
 
     public static func decodeClaude(_ data: Data, now: Date = Date()) throws -> UsageSnapshot {
@@ -91,9 +105,33 @@ public enum UsageResponseDecoder {
 
 private struct CodexUsageResponse: Decodable {
     let rateLimit: CodexRateLimit?
+    let rateLimitResetCredits: CodexResetCreditSummary?
 
     enum CodingKeys: String, CodingKey {
         case rateLimit = "rate_limit"
+        case rateLimitResetCredits = "rate_limit_reset_credits"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rateLimit = try container.decodeIfPresent(CodexRateLimit.self, forKey: .rateLimit)
+        rateLimitResetCredits = try? container.decodeIfPresent(
+            CodexResetCreditSummary.self,
+            forKey: .rateLimitResetCredits
+        )
+    }
+}
+
+private struct CodexResetCreditSummary: Decodable {
+    let availableCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case availableCount = "available_count"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        availableCount = try? container.decode(Int.self, forKey: .availableCount)
     }
 }
 

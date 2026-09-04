@@ -7,7 +7,11 @@ struct UsageCard: View {
     let showsWeekly: Bool
     let isRefreshing: Bool
     let errorMessage: String?
+    let resetCreditDetails: CodexResetCreditDetails?
+    let isLoadingResetCreditDetails: Bool
+    let resetCreditDetailsErrorMessage: String?
     let refresh: () async -> Void
+    let loadResetCreditDetails: () async -> Void
     let reconnect: (() async -> Void)?
     @Environment(\.locale) private var locale
 
@@ -62,6 +66,20 @@ struct UsageCard: View {
                         Divider().overlay(QuotaGlanceTheme.border)
                         WeeklyRow(window: snapshot.weekly, accent: snapshot.provider.accent)
                     }
+
+                    if ResetCreditPresentationPolicy.showsRow(
+                        provider: snapshot.provider,
+                        availableCount: snapshot.availableResetCount
+                    ), let availableResetCount = snapshot.availableResetCount {
+                        ResetCreditsSection(
+                            provider: snapshot.provider,
+                            availableCount: availableResetCount,
+                            details: resetCreditDetails,
+                            isLoading: isLoadingResetCreditDetails,
+                            errorMessage: resetCreditDetailsErrorMessage,
+                            loadDetails: loadResetCreditDetails
+                        )
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
@@ -100,6 +118,166 @@ struct UsageCard: View {
         guard let date else { return AppLocalization.string("Reset —", locale: locale) }
         let time = localDateTime(date, locale: locale)
         return AppLocalization.string("reset.time", defaultValue: "Reset %@", locale: locale, arguments: [time])
+    }
+}
+
+private struct ResetCreditsSection: View {
+    let provider: AIProvider
+    let availableCount: Int
+    let details: CodexResetCreditDetails?
+    let isLoading: Bool
+    let errorMessage: String?
+    let loadDetails: () async -> Void
+    @Environment(\.locale) private var locale
+    @State private var isExpanded = false
+
+    private var canExpand: Bool {
+        ResetCreditPresentationPolicy.allowsExpansion(
+            provider: provider,
+            availableCount: availableCount
+        )
+    }
+
+    private var availableCredits: [CodexResetCredit] {
+        details.map { ResetCreditPresentationPolicy.sortedAvailableCredits(in: $0) } ?? []
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if canExpand {
+                Button(action: toggleExpansion) {
+                    summaryRow(showsChevron: true)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(AppLocalization.string(
+                    isExpanded ? "Collapse reset details" : "Expand reset details",
+                    locale: locale
+                ))
+            } else {
+                summaryRow(showsChevron: false)
+            }
+
+            if isExpanded {
+                expandedContent
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .onChange(of: availableCount) { _, newValue in
+            if newValue <= 0 {
+                isExpanded = false
+            }
+        }
+    }
+
+    private func toggleExpansion() {
+        let willExpand = !isExpanded
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isExpanded = willExpand
+        }
+        if willExpand, details == nil, !isLoading {
+            Task { await loadDetails() }
+        }
+    }
+
+    private func summaryRow(showsChevron: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(AppLocalization.string("Banked resets", locale: locale))
+                .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            Spacer(minLength: 6)
+            Text(verbatim: summaryText)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            if showsChevron {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                    .accessibilityHidden(true)
+            }
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var expandedContent: some View {
+        if isLoading || (details == nil && errorMessage == nil) {
+            HStack(spacing: 7) {
+                ProgressView().controlSize(.mini).tint(provider.accent)
+                Text(AppLocalization.string("Loading reset details…", locale: locale))
+            }
+            .font(.caption2)
+            .foregroundStyle(QuotaGlanceTheme.secondaryText)
+            .padding(.leading, 10)
+        } else if let errorMessage {
+            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .foregroundStyle(QuotaGlanceTheme.attention)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 10)
+        } else if availableCredits.isEmpty {
+            Text(AppLocalization.string("No reset details reported.", locale: locale))
+                .font(.caption2)
+                .foregroundStyle(QuotaGlanceTheme.tertiaryText)
+                .padding(.leading, 10)
+        } else {
+            ForEach(availableCredits) { credit in
+                ResetCreditDetailRow(credit: credit)
+                    .padding(.leading, 10)
+            }
+        }
+    }
+
+    private var summaryText: String {
+        let countText = AppLocalization.string(
+            availableCount == 1 ? "reset.count.one" : "reset.count.other",
+            defaultValue: availableCount == 1 ? "%lld reset" : "%lld resets",
+            locale: locale,
+            arguments: [availableCount]
+        )
+        guard availableCount > 0,
+              let details,
+              let expiration = ResetCreditPresentationPolicy.nearestExpiration(in: details)
+        else { return countText }
+        return AppLocalization.string(
+            "reset.count.until",
+            defaultValue: "%@ · until %@",
+            locale: locale,
+            arguments: [countText, localResetDate(expiration, locale: locale)]
+        )
+    }
+}
+
+private struct ResetCreditDetailRow: View {
+    let credit: CodexResetCredit
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(verbatim: credit.providerTitle ?? AppLocalization.string(
+                "Reset detail",
+                locale: locale
+            ))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Spacer(minLength: 6)
+            if let expiresAt = credit.expiresAt {
+                Text(verbatim: AppLocalization.string(
+                    "reset.expires",
+                    defaultValue: "Until %@",
+                    locale: locale,
+                    arguments: [localResetDateTime(expiresAt, locale: locale)]
+                ))
+                    .foregroundStyle(QuotaGlanceTheme.secondaryText)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(QuotaGlanceTheme.primaryText)
     }
 }
 
@@ -186,5 +364,21 @@ func localDateTime(_ date: Date, locale: Locale) -> String {
     formatter.timeZone = .autoupdatingCurrent
     formatter.dateStyle = .short
     formatter.timeStyle = .short
+    return formatter.string(from: date)
+}
+
+private func localResetDate(_ date: Date, locale: Locale) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.timeZone = .autoupdatingCurrent
+    formatter.setLocalizedDateFormatFromTemplate("Md")
+    return formatter.string(from: date)
+}
+
+private func localResetDateTime(_ date: Date, locale: Locale) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.timeZone = .autoupdatingCurrent
+    formatter.setLocalizedDateFormatFromTemplate("Mdjm")
     return formatter.string(from: date)
 }

@@ -14,7 +14,92 @@ struct ProviderDecoderTests {
         #expect(snapshot.weekly?.remainingPercentage == 41)
         #expect(snapshot.session?.resetAt == Date(timeIntervalSince1970: 1_787_509_920))
         #expect(snapshot.weekly?.resetAt == Date(timeIntervalSince1970: 1_787_871_605))
+        #expect(snapshot.availableResetCount == 2)
         #expect(snapshot.updatedAt == updatedAt)
+    }
+
+    @Test("Codex reset count preserves zero")
+    func codexZeroResetCount() throws {
+        let snapshot = try UsageResponseDecoder.decodeCodex(codexUsageJSON(
+            resetCreditObject: #"{"available_count":0}"#
+        ))
+
+        #expect(snapshot.availableResetCount == 0)
+        #expect(snapshot.session?.remainingPercentage == 75)
+        #expect(snapshot.weekly?.remainingPercentage == 50)
+    }
+
+    @Test("Codex usage remains decodable when reset count is absent")
+    func codexMissingResetCount() throws {
+        let missingObject = try UsageResponseDecoder.decodeCodex(codexUsageJSON())
+        let missingCount = try UsageResponseDecoder.decodeCodex(codexUsageJSON(
+            resetCreditObject: "{}"
+        ))
+        let malformedCount = try UsageResponseDecoder.decodeCodex(codexUsageJSON(
+            resetCreditObject: #"{"available_count":"unexpected"}"#
+        ))
+
+        #expect(missingObject.availableResetCount == nil)
+        #expect(missingCount.availableResetCount == nil)
+        #expect(malformedCount.availableResetCount == nil)
+        #expect(missingObject.session?.resetAt == Date(timeIntervalSince1970: 1_000))
+        #expect(missingObject.weekly?.resetAt == Date(timeIntervalSince1970: 2_000))
+    }
+
+    @Test("Codex reset details decode titles and optional expirations")
+    func codexResetDetails() throws {
+        let details = try UsageResponseDecoder.decodeCodexResetCredits(Data(#"""
+        {
+          "credits": [
+            {
+              "id": "later",
+              "reset_type": "codex_rate_limits",
+              "status": "available",
+              "granted_at": "2026-09-01T00:00:00Z",
+              "expires_at": "2026-10-04T09:39:00Z",
+              "title": "Full reset"
+            },
+            {
+              "id": "no-expiration",
+              "reset_type": "codex_rate_limits",
+              "status": "available",
+              "granted_at": "2026-09-02T00:00:00Z",
+              "expires_at": null
+            },
+            {
+              "id": "earlier",
+              "reset_type": "codex_rate_limits",
+              "status": "AVAILABLE",
+              "granted_at": "2026-09-03T00:00:00Z",
+              "expires_at": "2026-09-21T06:31:00Z",
+              "title": "  Weekly and 5h reset  "
+            },
+            {
+              "id": "redeemed",
+              "reset_type": "codex_rate_limits",
+              "status": "redeemed",
+              "granted_at": "2026-08-01T00:00:00Z",
+              "expires_at": "2026-09-10T00:00:00Z",
+              "title": "Already used"
+            }
+          ],
+          "available_count": 3,
+          "total_earned_count": 4
+        }
+        """#.utf8))
+
+        #expect(details.credits.count == 4)
+        #expect(details.credits[0].title == "Full reset")
+        #expect(details.credits[1].title == nil)
+        #expect(details.credits[1].expiresAt == nil)
+        #expect(details.credits[2].providerTitle == "Weekly and 5h reset")
+
+        let sorted = ResetCreditPresentationPolicy.sortedAvailableCredits(in: details)
+        #expect(sorted.map(\.id) == ["earlier", "later", "no-expiration"])
+        #expect(
+            ResetCreditPresentationPolicy.nearestExpiration(in: details)
+                == ISO8601DateFormatter().date(from: "2026-09-21T06:31:00Z")
+        )
     }
 
     @Test("Claude fixture maps utilization as used percentage")
@@ -26,6 +111,7 @@ struct ProviderDecoderTests {
         #expect(snapshot.weekly?.remainingPercentage == 63)
         #expect(snapshot.session?.resetAt != nil)
         #expect(snapshot.weekly?.resetAt == ISO8601DateFormatter().date(from: "2026-08-29T09:00:00Z"))
+        #expect(snapshot.availableResetCount == nil)
     }
 
     @Test("Missing provider windows is a schema error")
@@ -50,5 +136,27 @@ struct ProviderDecoderTests {
     private func fixture(_ name: String) -> Data {
         let url = Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")!
         return try! Data(contentsOf: url)
+    }
+
+    private func codexUsageJSON(resetCreditObject: String? = nil) -> Data {
+        let resetCreditField = resetCreditObject.map {
+            #", "rate_limit_reset_credits": \#($0)"#
+        } ?? ""
+        return Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 25,
+              "limit_window_seconds": 18000,
+              "reset_at": 1000
+            },
+            "secondary_window": {
+              "used_percent": 50,
+              "limit_window_seconds": 604800,
+              "reset_at": 2000
+            }
+          }\#(resetCreditField)
+        }
+        """#.utf8)
     }
 }

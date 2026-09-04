@@ -4905,6 +4905,105 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "Free 使用第一个账号。Trial 和 Pro 最多可选择 2 个账号。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "Free 使用第一個帳戶。Trial 和 Pro 最多可選擇 2 個帳戶。" } }
       }
+    },
+    "Banked resets": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Resets" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重設" } }
+      }
+    },
+    "Collapse reset details": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Collapse reset details" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット詳細を閉じる" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋 세부 정보 접기" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "收起重置详情" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "收合重設詳細資料" } }
+      }
+    },
+    "Expand reset details": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Expand reset details" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット詳細を開く" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋 세부 정보 펼치기" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "展开重置详情" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "展開重設詳細資料" } }
+      }
+    },
+    "Loading reset details…": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading reset details…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット詳細を読み込み中…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋 세부 정보를 불러오는 중…" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在加载重置详情…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在載入重設詳細資料…" } }
+      }
+    },
+    "No reset details reported.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No reset details reported." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット詳細は報告されていません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "보고된 리셋 세부 정보가 없습니다." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "服务商未提供重置详情。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "服務商未提供重設詳細資料。" } }
+      }
+    },
+    "Reset detail": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Reset" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重設" } }
+      }
+    },
+    "Unable to load reset details. Try again.": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unable to load reset details. Try again." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リセット詳細を読み込めません。もう一度お試しください。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "리셋 세부 정보를 불러올 수 없습니다. 다시 시도해 주세요." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法加载重置详情。请重试。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "無法載入重設詳細資料。請再試一次。" } }
+      }
+    },
+    "reset.count.one": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld reset" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%lld回" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%lld회" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 次" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%lld 次" } }
+      }
+    },
+    "reset.count.other": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%lld resets" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%lld回" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%lld회" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%lld 次" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%lld 次" } }
+      }
+    },
+    "reset.count.until": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ · until %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ · %@まで" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ · %@까지" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%@ · 截至 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ · 截至 %@" } }
+      }
+    },
+    "reset.expires": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Until %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@まで" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@까지" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "截至 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "截至 %@" } }
+      }
     }
   },
   "version": "1.0"

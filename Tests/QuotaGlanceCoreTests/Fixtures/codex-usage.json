@@ -20,5 +20,8 @@
     "has_credits": false,
     "unlimited": false,
     "balance": "0"
+  },
+  "rate_limit_reset_credits": {
+    "available_count": 2
   }
 }

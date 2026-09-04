@@ -98,6 +98,7 @@ enum PreviewFactory {
             accountIdentifier: codexAccount.id,
             session: UsageWindow(usedPercentage: 91, resetAt: Date().addingTimeInterval(600)),
             weekly: nil,
+            availableResetCount: 2,
             updatedAt: Date()
         )
         return [presentation(codexAccount, snapshot: low)]
@@ -171,7 +172,11 @@ enum PreviewFactory {
             isConnected: true,
             snapshot: snapshot,
             isRefreshing: false,
-            error: error
+            error: error,
+            resetCreditDetails: account.provider == .codex
+                && (snapshot.availableResetCount ?? 0) > 0
+                ? sampleResetCreditDetails(referenceDate: snapshot.updatedAt)
+                : nil
         )
     }
 
@@ -194,13 +199,46 @@ enum PreviewFactory {
                 usedPercentage: weeklyUsedPercentage,
                 resetAt: updatedAt.addingTimeInterval(weeklyResetInterval)
             ),
+            availableResetCount: account.provider == .codex ? 2 : nil,
             updatedAt: updatedAt
         )
+    }
+
+    fileprivate static func sampleResetCreditDetails(
+        referenceDate: Date
+    ) -> CodexResetCreditDetails {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let startOfDay = calendar.startOfDay(for: referenceDate)
+        let firstExpiration = calendar.date(
+            byAdding: DateComponents(day: 16, hour: 6, minute: 31),
+            to: startOfDay
+        )!
+        let secondExpiration = calendar.date(
+            byAdding: DateComponents(day: 29, hour: 9, minute: 39),
+            to: startOfDay
+        )!
+        return CodexResetCreditDetails(credits: [
+            CodexResetCredit(
+                id: "demo-reset-1",
+                resetType: "codex_rate_limits",
+                status: "available",
+                title: "Full reset (Weekly + 5 hr)",
+                expiresAt: firstExpiration
+            ),
+            CodexResetCredit(
+                id: "demo-reset-2",
+                resetType: "codex_rate_limits",
+                status: "available",
+                title: "Full reset (Weekly + 5 hr)",
+                expiresAt: secondExpiration
+            ),
+        ])
     }
 }
 
 @MainActor
-private final class PreviewProvider: UsageProvider {
+private final class PreviewProvider: UsageProvider, CodexResetCreditDetailsProvider {
     let provider: AIProvider
     private var connected: Set<UUID> = []
 
@@ -222,6 +260,10 @@ private final class PreviewProvider: UsageProvider {
     func refreshUsage(accountIdentifier: UUID) async throws -> UsageSnapshot {
         let snapshot = provider == .codex ? PreviewFactory.codex : PreviewFactory.claude
         return snapshot.assigned(to: accountIdentifier)
+    }
+
+    func resetCreditDetails(accountIdentifier: UUID) async throws -> CodexResetCreditDetails {
+        PreviewFactory.sampleResetCreditDetails(referenceDate: Date())
     }
 }
 

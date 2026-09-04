@@ -7,7 +7,7 @@ QuotaGlance is a local-first SwiftUI app for checking the remaining usage window
 The current product includes:
 
 - Codex and Claude account connections;
-- 5H and Weekly remaining-usage views on iPhone and iPad;
+- 5H and Weekly remaining-usage views plus read-only Codex Banked Reset details on iPhone and iPad;
 - multiple saved provider accounts, with entitlement-based access;
 - iPhone and iPad small and medium widgets;
 - an Apple Watch app plus circular, rectangular, and inline complications;
@@ -35,7 +35,7 @@ The iOS app target embeds the iPhone / iPad Widget and Watch app. The Watch app 
 | Codex | OpenAI browser OAuth with PKCE and a loopback callback; the iOS app retrieves Codex usage data | Readable OAuth/JWT name, then email |
 | Claude | Claude browser OAuth with PKCE and a loopback callback; the iOS app retrieves Claude usage data | OAuth account name, then `email_address` |
 
-Only `codex` and `claude` exist in the current `AIProvider` model and `AppEnvironment` provider registry. Both provider decoders map the returned 5H/session and Weekly windows into the shared `UsageSnapshot` model.
+Only `codex` and `claude` exist in the current `AIProvider` model and `AppEnvironment` provider registry. Both provider decoders map the returned 5H/session and Weekly windows into the shared `UsageSnapshot` model; the Codex decoder also maps the optional Provider-reported Banked Reset count.
 
 An account's display name follows this order:
 
@@ -55,6 +55,7 @@ The Upgrade screen and product policy use the same comparison:
 | --- | :---: | :---: |
 | iPhone 5H | ✓ | ✓ |
 | iPhone Weekly | — | ✓ |
+| iPhone Codex Banked Resets | ✓ | ✓ |
 | iPhone multiple accounts | — | ✓ |
 | iPhone Widget | — | ✓ |
 | Apple Watch 5H | ✓ | ✓ |
@@ -118,6 +119,12 @@ These actions remain available to Free users for their entitled account. A succe
 - The iPhone and iPad dashboard shows the most recent successful snapshot update once in its header summary, while Watch surfaces show the update time for their displayed snapshot; snapshots older than 15 minutes receive the cached/stale treatment.
 - Refresh failures keep the previous successful quota data and add an error state instead of replacing it with empty data.
 
+### Codex Banked Resets
+
+When the Codex usage response provides a Banked Reset count, the iPhone/iPad Codex Account Card shows it for Free, Trial, and Pro. A positive count can be expanded; the first expansion loads the current Reset titles and expiration times on demand, orders available items from earliest expiration to latest, and caches those details only for the current app session. A failed details request leaves the existing 5H, Weekly, and Reset count presentation intact. Claude cards do not show this row.
+
+QuotaGlance only reads and displays Banked Reset data. It does not expose, implement, or call the Reset-credit consume operation. Reset details are not added to the Widget, Apple Watch app, or complications.
+
 Settings keeps the existing controls grouped by purpose: Pro access, General, Refresh, provider-specific Accounts, Display, Apple Watch, and About.
 
 ## Purchase and Trial
@@ -170,7 +177,7 @@ Codex / Claude OAuth + Usage API (iOS app only)
                                   Watch app + complication
 ```
 
-OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain items with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The App Group cache, Widget, WatchConnectivity payload, Watch cache, and complications handle `SnapshotEnvelope` data: provider/account display metadata, quota windows, reset dates, update dates, selected Watch accounts, display limit, and access level. They do not receive OAuth credentials.
+OAuth credentials are encoded only into `kSecClassGenericPassword` Keychain items with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The App Group cache, Widget, WatchConnectivity payload, Watch cache, and complications handle `SnapshotEnvelope` data: provider/account display metadata, quota windows, optional Codex Banked Reset counts, quota-window reset dates, update dates, selected Watch accounts, display limit, and access level. They do not receive OAuth credentials. On-demand Banked Reset title/expiration details remain in the iPhone/iPad app session and are not published through `SnapshotEnvelope`.
 
 ## Privacy and Terms
 

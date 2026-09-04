@@ -132,9 +132,40 @@ struct UsageModelsTests {
     func legacySnapshotCompatibility() throws {
         let legacyJSON = #"{"provider":"codex","session":null,"weekly":null,"updatedAt":0}"#
         let snapshot = try JSONDecoder().decode(UsageSnapshot.self, from: Data(legacyJSON.utf8))
+        let legacyEnvelopeJSON = #"{"version":1,"snapshots":[{"provider":"codex","session":null,"weekly":null,"updatedAt":0}]}"#
+        let envelope = try SnapshotCoding.decode(Data(legacyEnvelopeJSON.utf8))
 
         #expect(snapshot.provider == .codex)
         #expect(snapshot.accountIdentifier == nil)
+        #expect(snapshot.availableResetCount == nil)
+        #expect(envelope.snapshots.first?.availableResetCount == nil)
+    }
+
+    @Test("Reset row policy distinguishes missing, zero, positive, and Claude values")
+    func resetRowPolicy() {
+        #expect(!ResetCreditPresentationPolicy.showsRow(provider: .codex, availableCount: nil))
+        #expect(ResetCreditPresentationPolicy.showsRow(provider: .codex, availableCount: 0))
+        #expect(!ResetCreditPresentationPolicy.allowsExpansion(provider: .codex, availableCount: 0))
+        #expect(ResetCreditPresentationPolicy.showsRow(provider: .codex, availableCount: 2))
+        #expect(ResetCreditPresentationPolicy.allowsExpansion(provider: .codex, availableCount: 2))
+        #expect(!ResetCreditPresentationPolicy.showsRow(provider: .claude, availableCount: 2))
+        #expect(!ResetCreditPresentationPolicy.allowsExpansion(provider: .claude, availableCount: 2))
+    }
+
+    @Test("Snapshot reset count round-trips without changing the envelope version")
+    func resetCountSnapshotCompatibility() throws {
+        let snapshot = UsageSnapshot(
+            provider: .codex,
+            session: nil,
+            weekly: nil,
+            availableResetCount: 2,
+            updatedAt: .distantPast
+        )
+        let envelope = SnapshotEnvelope(snapshots: [snapshot])
+        let decoded = try SnapshotCoding.decode(SnapshotCoding.encode(envelope))
+
+        #expect(decoded.version == SnapshotEnvelope.currentVersion)
+        #expect(decoded.snapshots.first?.availableResetCount == 2)
     }
 
     @Test("Legacy envelopes default Widget and Watch to the five-hour limit")

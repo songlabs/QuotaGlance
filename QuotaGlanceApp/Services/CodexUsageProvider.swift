@@ -2,13 +2,16 @@ import Foundation
 import QuotaGlanceCore
 
 @MainActor
-final class CodexUsageProvider: UsageProvider {
+final class CodexUsageProvider: UsageProvider, CodexResetCreditDetailsProvider {
     let provider = AIProvider.codex
 
     private let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
     private let authorizationEndpoint = URL(string: "https://auth.openai.com/oauth/authorize")!
     private let tokenEndpoint = URL(string: "https://auth.openai.com/oauth/token")!
     private let usageEndpoint = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
+    private let resetCreditsEndpoint = URL(
+        string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
+    )!
     private let scopes = "openid profile email offline_access api.connectors.read api.connectors.invoke"
 
     private let credentials: KeychainCredentialStore
@@ -119,6 +122,22 @@ final class CodexUsageProvider: UsageProvider {
         }
     }
 
+    func resetCreditDetails(accountIdentifier: UUID) async throws -> CodexResetCreditDetails {
+        guard var credential = try credentials.load(provider, accountIdentifier: accountIdentifier) else {
+            throw UsageProviderError.noAccount
+        }
+        if credential.expiresAt <= Date().addingTimeInterval(60) {
+            credential = try await refresh(credential, accountIdentifier: accountIdentifier).credential
+        }
+
+        do {
+            return try await requestResetCreditDetails(credential)
+        } catch UsageProviderError.rejected(statusCode: 401) {
+            let refreshed = try await refresh(credential, accountIdentifier: accountIdentifier).credential
+            return try await requestResetCreditDetails(refreshed)
+        }
+    }
+
     private func requestUsage(_ credential: OAuthCredential) async throws -> UsageSnapshot {
         guard let accountID = credential.accountID else { throw UsageProviderError.noAccount }
         var request = URLRequest(url: usageEndpoint)
@@ -129,6 +148,20 @@ final class CodexUsageProvider: UsageProvider {
         let (data, response) = try await perform(request)
         guard response.statusCode == 200 else { throw map(status: response.statusCode) }
         return try UsageResponseDecoder.decodeCodex(data)
+    }
+
+    private func requestResetCreditDetails(
+        _ credential: OAuthCredential
+    ) async throws -> CodexResetCreditDetails {
+        guard let accountID = credential.accountID else { throw UsageProviderError.noAccount }
+        var request = URLRequest(url: resetCreditsEndpoint)
+        request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        request.setValue("QuotaGlance/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await perform(request)
+        guard response.statusCode == 200 else { throw map(status: response.statusCode) }
+        return try UsageResponseDecoder.decodeCodexResetCredits(data)
     }
 
     private func refresh(

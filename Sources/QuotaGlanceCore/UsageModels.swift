@@ -153,6 +153,88 @@ public enum AutomaticRefreshInterval: String, CaseIterable, Equatable, Identifia
     }
 }
 
+public struct CodexResetCredit: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let resetType: String?
+    public let status: String
+    public let title: String?
+    public let expiresAt: Date?
+
+    public init(
+        id: String,
+        resetType: String? = nil,
+        status: String,
+        title: String? = nil,
+        expiresAt: Date? = nil
+    ) {
+        self.id = id
+        self.resetType = resetType
+        self.status = status
+        self.title = title
+        self.expiresAt = expiresAt
+    }
+
+    public var isAvailable: Bool {
+        status.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare("available") == .orderedSame
+    }
+
+    public var providerTitle: String? {
+        guard let title else { return nil }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case resetType = "reset_type"
+        case status
+        case title
+        case expiresAt = "expires_at"
+    }
+}
+
+public struct CodexResetCreditDetails: Decodable, Equatable, Sendable {
+    public let credits: [CodexResetCredit]
+
+    public init(credits: [CodexResetCredit]) {
+        self.credits = credits
+    }
+}
+
+public enum ResetCreditPresentationPolicy {
+    public static func showsRow(provider: AIProvider, availableCount: Int?) -> Bool {
+        provider == .codex && availableCount != nil
+    }
+
+    public static func allowsExpansion(provider: AIProvider, availableCount: Int?) -> Bool {
+        provider == .codex && (availableCount ?? 0) > 0
+    }
+
+    public static func sortedAvailableCredits(
+        in details: CodexResetCreditDetails
+    ) -> [CodexResetCredit] {
+        details.credits
+            .filter(\.isAvailable)
+            .sorted { lhs, rhs in
+                switch (lhs.expiresAt, rhs.expiresAt) {
+                case (let lhsDate?, let rhsDate?) where lhsDate != rhsDate:
+                    lhsDate < rhsDate
+                case (_?, nil):
+                    true
+                case (nil, _?):
+                    false
+                default:
+                    lhs.id < rhs.id
+                }
+            }
+    }
+
+    public static func nearestExpiration(in details: CodexResetCreditDetails) -> Date? {
+        sortedAvailableCredits(in: details).compactMap(\.expiresAt).first
+    }
+}
+
 public enum AutomaticRefreshPreferences {
     public static let intervalKey = "automaticRefreshInterval.v2"
     public static let legacyValueKey = "refreshInterval.value"
@@ -189,6 +271,7 @@ public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
     public let accountIdentifier: UUID?
     public let session: UsageWindow?
     public let weekly: UsageWindow?
+    public let availableResetCount: Int?
     public let updatedAt: Date
 
     public init(
@@ -196,12 +279,14 @@ public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
         accountIdentifier: UUID? = nil,
         session: UsageWindow?,
         weekly: UsageWindow?,
+        availableResetCount: Int? = nil,
         updatedAt: Date
     ) {
         self.provider = provider
         self.accountIdentifier = accountIdentifier
         self.session = session
         self.weekly = weekly
+        self.availableResetCount = availableResetCount
         self.updatedAt = updatedAt
     }
 
@@ -215,6 +300,7 @@ public struct UsageSnapshot: Codable, Equatable, Identifiable, Sendable {
             accountIdentifier: accountIdentifier,
             session: session,
             weekly: weekly,
+            availableResetCount: availableResetCount,
             updatedAt: updatedAt
         )
     }

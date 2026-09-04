@@ -14,6 +14,12 @@ public protocol UsageProvider: AnyObject {
 public extension UsageProvider {
     func accountIdentityLabel(accountIdentifier: UUID) async throws -> String? { nil }
 }
+
+@MainActor
+public protocol CodexResetCreditDetailsProvider: AnyObject {
+    func resetCreditDetails(accountIdentifier: UUID) async throws -> CodexResetCreditDetails
+}
+
 public enum UsageProviderError: Error, Equatable, Sendable {
     case authenticationCancelled
     case noAccount

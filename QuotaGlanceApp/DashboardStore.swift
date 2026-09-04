@@ -84,6 +84,9 @@ struct ProviderPresentation: Equatable {
     var snapshot: UsageSnapshot?
     var isRefreshing: Bool
     var error: PresentationError?
+    var resetCreditDetails: CodexResetCreditDetails? = nil
+    var isLoadingResetCreditDetails = false
+    var resetCreditDetailsError: PresentationError? = nil
 
     var provider: AIProvider { account.provider }
 }
@@ -620,6 +623,52 @@ final class DashboardStore {
         }
     }
 
+    func loadResetCreditDetails(_ accountIdentifier: UUID) async {
+        guard !isAppReviewDemoEnabled,
+              let account = accounts.first(where: { $0.id == accountIdentifier }),
+              account.provider == .codex,
+              let availableCount = states[accountIdentifier]?.snapshot?.availableResetCount,
+              ResetCreditPresentationPolicy.allowsExpansion(
+                  provider: account.provider,
+                  availableCount: availableCount
+              ),
+              states[accountIdentifier]?.isConnected == true,
+              states[accountIdentifier]?.resetCreditDetails == nil,
+              states[accountIdentifier]?.isLoadingResetCreditDetails == false
+        else { return }
+
+        guard let usageProvider = providers[account.provider],
+              let detailsProvider = usageProvider as? any CodexResetCreditDetailsProvider
+        else {
+            states[accountIdentifier]?.resetCreditDetailsError = .generic
+            return
+        }
+
+        activeProductionOperationCount += 1
+        states[accountIdentifier]?.isLoadingResetCreditDetails = true
+        states[accountIdentifier]?.resetCreditDetailsError = nil
+        defer {
+            states[accountIdentifier]?.isLoadingResetCreditDetails = false
+            activeProductionOperationCount -= 1
+        }
+
+        do {
+            let details = try await detailsProvider.resetCreditDetails(
+                accountIdentifier: accountIdentifier
+            )
+            try Task.checkCancellation()
+            guard (states[accountIdentifier]?.snapshot?.availableResetCount ?? 0) > 0 else {
+                return
+            }
+            states[accountIdentifier]?.resetCreditDetails = details
+            states[accountIdentifier]?.resetCreditDetailsError = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            states[accountIdentifier]?.resetCreditDetailsError = PresentationError(error)
+        }
+    }
+
     func addAccount(_ provider: AIProvider) async {
         guard !isAppReviewDemoEnabled else {
             isShowingAppReviewDemo = true
@@ -706,6 +755,8 @@ final class DashboardStore {
             states[accountIdentifier]?.isConnected = true
             states[accountIdentifier]?.account = updatedAccount
             states[accountIdentifier]?.isRefreshing = false
+            states[accountIdentifier]?.resetCreditDetails = nil
+            states[accountIdentifier]?.resetCreditDetailsError = nil
             if cache.watchAccountIdentifiers() == nil {
                 watchAccountIdentifiers = [accountIdentifier]
                 cache.setWatchAccountIdentifiers(watchAccountIdentifiers)
